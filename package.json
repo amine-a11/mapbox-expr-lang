@@ -21,7 +21,7 @@
   },
   "scripts": {
     "build": "tsup",
-    "dev": "tsx src/index.ts",
+    "dev": "tsx src/repl.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

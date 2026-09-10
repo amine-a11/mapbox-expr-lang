@@ -1,10 +1,2 @@
-import * as readline from "readline/promises";
-
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-});
-while (true) {
-  const input = await rl.question("mapbox-expr-lang>");
-  console.log(input);
-}
+// Public API entry point — exports (compile, parse, etc.) will land here.
+export {};
