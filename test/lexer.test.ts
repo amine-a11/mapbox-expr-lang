@@ -12,12 +12,16 @@ function simplify(tokens: Token[]): [TokenType, number | undefined][] {
   return tokens.map((t) => [t.type, t.value]);
 }
 
+// makeToken() always appends an EOF token on success, so every
+// "successful tokenize" expectation ends with this.
+const EOF = [TokenType.EOF, undefined] as const;
+
 describe("Lexer", () => {
   it("tokenizes a single integer", () => {
     const [tokens, error] = tokenize("42");
 
     expect(error).toBeUndefined();
-    expect(simplify(tokens)).toEqual([[TokenType.INT, 42]]);
+    expect(simplify(tokens)).toEqual([[TokenType.INT, 42], EOF]);
   });
 
   it.each([
@@ -31,7 +35,7 @@ describe("Lexer", () => {
     const [tokens, error] = tokenize(source);
 
     expect(error).toBeUndefined();
-    expect(simplify(tokens)).toEqual([[type, undefined]]);
+    expect(simplify(tokens)).toEqual([[type, undefined], EOF]);
   });
 
   it("tokenizes a full arithmetic expression", () => {
@@ -48,6 +52,7 @@ describe("Lexer", () => {
       [TokenType.MINUS, undefined],
       [TokenType.INT, 4],
       [TokenType.RPAREN, undefined],
+      EOF,
     ]);
   });
 
@@ -55,14 +60,14 @@ describe("Lexer", () => {
     const [tokens, error] = tokenize("3.14");
 
     expect(error).toBeUndefined();
-    expect(simplify(tokens)).toEqual([[TokenType.FLOAT, 3.14]]);
+    expect(simplify(tokens)).toEqual([[TokenType.FLOAT, 3.14], EOF]);
   });
 
   it("keeps a falsy numeric value like 0 (regression)", () => {
     const [tokens, error] = tokenize("0");
 
     expect(error).toBeUndefined();
-    expect(simplify(tokens)).toEqual([[TokenType.INT, 0]]);
+    expect(simplify(tokens)).toEqual([[TokenType.INT, 0], EOF]);
   });
 
   it("ignores whitespace between tokens", () => {
@@ -73,6 +78,7 @@ describe("Lexer", () => {
       [TokenType.INT, 1],
       [TokenType.PLUS, undefined],
       [TokenType.INT, 2],
+      EOF,
     ]);
   });
 
@@ -85,11 +91,11 @@ describe("Lexer", () => {
     expect(error?.message).toBe("'@'");
   });
 
-  it("returns no tokens and no error for empty input", () => {
+  it("returns just an EOF token and no error for empty input", () => {
     const [tokens, error] = tokenize("");
 
-    expect(tokens).toEqual([]);
     expect(error).toBeUndefined();
+    expect(simplify(tokens)).toEqual([EOF]);
   });
 
   it("stops a number at a second decimal point", () => {

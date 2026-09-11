@@ -1,5 +1,7 @@
 import * as readline from "node:readline/promises";
 import { Lexer } from "./lexer/lexer";
+import { Parser } from "./parser/parser";
+import { LangError } from "./errors/langError";
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -8,8 +10,18 @@ const rl = readline.createInterface({
 
 while (true) {
   const input = await rl.question("mapbox-expr-lang> ");
-  const lexer = new Lexer(input);
-  const [tokens, error] = lexer.makeToken();
-  if (error) console.log(`${error}`);
-  else console.log(tokens);
+
+  const [tokens, lexError] = new Lexer(input).makeToken();
+  if (lexError) {
+    console.log(`${lexError}`);
+    continue;
+  }
+
+  try {
+    const ast = new Parser(tokens, input).parse();
+    console.log(ast);
+  } catch (error) {
+    if (error instanceof LangError) console.log(`${error}`);
+    else throw error;
+  }
 }

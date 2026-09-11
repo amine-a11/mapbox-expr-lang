@@ -12,25 +12,30 @@ export enum TokenType {
   DIV,
   LPAREN,
   RPAREN,
+  EOF,
 }
 
 export class Token {
-  posStart: Position | undefined;
-  posEnd: Position | undefined;
+  posStart: Position;
+  posEnd: Position;
 
   constructor(
     public type: TokenType,
-    public value?: number,
-    posStart?: Position,
-    posEnd?: Position,
+    public value: number | undefined,
+    posStart: Position,
+    posEnd: Position,
   ) {
-    this.posStart = posStart?.copy();
-    this.posEnd = posEnd?.copy() ?? this.posStart;
+    this.posStart = posStart.copy();
+    this.posEnd = posEnd.copy();
   }
 
-  [inspect.custom](): string {
+  toString(): string {
     const type = TokenType[this.type];
     if (this.value !== undefined) return `${type}:${this.value}`;
     return type;
+  }
+
+  [inspect.custom](): string {
+    return this.toString();
   }
 }

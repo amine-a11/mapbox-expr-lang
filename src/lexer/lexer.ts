@@ -52,9 +52,10 @@ export class Lexer {
         const posStart = this.pos.copy();
         const char = this.currentChar;
         this.advance();
-        return [[], new IllegalCharError(posStart, this.pos, char)];
+        return [[], new IllegalCharError(posStart, this.pos, char, this.text)];
       }
     }
+    tokens.push(new Token(TokenType.EOF, undefined, this.pos, this.pos));
     return [tokens, undefined];
   }
 
