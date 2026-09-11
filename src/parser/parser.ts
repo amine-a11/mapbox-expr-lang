@@ -4,8 +4,8 @@ import { Position } from "../errors/position";
 import { BinOpNode, NumberNode, UnaryOpNode, type Node } from "./nodes";
 
 export class Parser {
-  tokIdx: number;
-  currentToken: Token | undefined;
+  private tokIdx: number;
+  private currentToken: Token | undefined;
 
   constructor(
     public tokens: Token[],
@@ -15,13 +15,31 @@ export class Parser {
     this.advance();
   }
 
-  advance(): Token | undefined {
+  parse(): Node {
+    const node = this.expr();
+
+    // expr() stops as soon as it can't extend the expression further --
+    // if we're not sitting on EOF at that point, there's leftover input
+    // the grammar doesn't account for (e.g. "1 + 2 3").
+    if (this.currentToken !== undefined && this.currentToken.type !== TokenType.EOF) {
+      throw new InvalidSyntaxError(
+        this.currentToken.posStart,
+        this.currentToken.posEnd,
+        `Unexpected token: ${this.currentToken}`,
+        this.text,
+      );
+    }
+
+    return node;
+  }
+
+  private advance(): Token | undefined {
     this.tokIdx++;
     this.currentToken = this.tokIdx < this.tokens.length ? this.tokens[this.tokIdx] : undefined;
     return this.currentToken;
   }
 
-  factor(): Node {
+  private factor(): Node {
     const tok = this.currentToken;
     if (tok !== undefined && (tok.type === TokenType.PLUS || tok.type === TokenType.MINUS)) {
       this.advance();
@@ -52,15 +70,15 @@ export class Parser {
     );
   }
 
-  term(): Node {
+  private term(): Node {
     return this.binOp(() => this.factor(), [TokenType.MUL, TokenType.DIV]);
   }
 
-  expr(): Node {
+  private expr(): Node {
     return this.binOp(() => this.term(), [TokenType.PLUS, TokenType.MINUS]);
   }
 
-  binOp(func: () => Node, ops: TokenType[]): Node {
+  private binOp(func: () => Node, ops: TokenType[]): Node {
     let left = func();
 
     while (this.currentToken !== undefined && ops.includes(this.currentToken.type)) {
@@ -71,21 +89,6 @@ export class Parser {
     }
 
     return left;
-  }
-
-  parse(): Node {
-    const node = this.expr();
-
-    if (this.currentToken !== undefined && this.currentToken.type !== TokenType.EOF) {
-      throw new InvalidSyntaxError(
-        this.currentToken.posStart,
-        this.currentToken.posEnd,
-        `Unexpected token: ${this.currentToken}`,
-        this.text,
-      );
-    }
-
-    return node;
   }
 
   private errorRange(): [Position, Position] {

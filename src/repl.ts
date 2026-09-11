@@ -11,13 +11,8 @@ const rl = readline.createInterface({
 while (true) {
   const input = await rl.question("mapbox-expr-lang> ");
 
-  const [tokens, lexError] = new Lexer(input).makeToken();
-  if (lexError) {
-    console.log(`${lexError}`);
-    continue;
-  }
-
   try {
+    const tokens = new Lexer(input).makeToken();
     const ast = new Parser(tokens, input).parse();
     console.log(ast);
   } catch (error) {

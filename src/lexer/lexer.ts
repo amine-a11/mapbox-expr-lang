@@ -1,5 +1,5 @@
 import { TokenType, Token, DIGITS } from "./token";
-import { LangError, IllegalCharError } from "../errors/langError";
+import { IllegalCharError } from "../errors/langError";
 import { Position } from "../errors/position";
 
 export class Lexer {
@@ -17,7 +17,7 @@ export class Lexer {
     this.currentChar = this.pos.idx < this.text.length ? this.text[this.pos.idx] : undefined;
   }
 
-  makeToken(): [Token[], LangError | undefined] {
+  makeToken(): Token[] {
     const tokens: Token[] = [];
     while (this.currentChar !== undefined) {
       if (this.currentChar === " " || this.currentChar === "\t") {
@@ -52,11 +52,11 @@ export class Lexer {
         const posStart = this.pos.copy();
         const char = this.currentChar;
         this.advance();
-        return [[], new IllegalCharError(posStart, this.pos, char, this.text)];
+        throw new IllegalCharError(posStart, this.pos, char, this.text);
       }
     }
     tokens.push(new Token(TokenType.EOF, undefined, this.pos, this.pos));
-    return [tokens, undefined];
+    return tokens;
   }
 
   makeNumber(): Token {
