@@ -34,3 +34,9 @@ export class InvalidSyntaxError extends LangError {
     super("Invalid Syntax", posStart, posEnd, details, text);
   }
 }
+
+export class RuntimeError extends LangError {
+  constructor(posStart: Position, posEnd: Position, details: string, text: string) {
+    super("Runtime Error", posStart, posEnd, details, text);
+  }
+}

@@ -1,10 +1,22 @@
 import { inspect } from "node:util";
 import type { Token } from "../lexer/token";
+import type { Position } from "../errors/position";
 
 export type Node = NumberNode | BinOpNode | UnaryOpNode;
 
-export class NumberNode {
-  constructor(public tok: Token) {}
+export interface Positioned {
+  posStart: Position;
+  posEnd: Position;
+}
+
+export class NumberNode implements Positioned {
+  posStart: Position;
+  posEnd: Position;
+
+  constructor(public tok: Token) {
+    this.posStart = tok.posStart;
+    this.posEnd = tok.posEnd;
+  }
 
   toString(): string {
     return `${this.tok}`;
@@ -16,12 +28,18 @@ export class NumberNode {
 }
 
 // binary operation node
-export class BinOpNode {
+export class BinOpNode implements Positioned {
+  posStart: Position;
+  posEnd: Position;
+
   constructor(
     public leftNode: Node,
     public opToken: Token,
     public rightNode: Node,
-  ) {}
+  ) {
+    this.posStart = leftNode.posStart;
+    this.posEnd = rightNode.posEnd;
+  }
 
   toString(): string {
     return `(${this.leftNode}, ${this.opToken}, ${this.rightNode})`;
@@ -32,11 +50,18 @@ export class BinOpNode {
   }
 }
 
-export class UnaryOpNode {
+export class UnaryOpNode implements Positioned {
+  posStart: Position;
+  posEnd: Position;
+
   constructor(
     public opTok: Token,
     public node: Node,
-  ) {}
+  ) {
+    this.posStart = opTok.posStart;
+    this.posEnd = node.posEnd;
+  }
+
   toString(): string {
     return `(${this.opTok}, ${this.node})`;
   }
