@@ -40,3 +40,9 @@ export class RuntimeError extends LangError {
     super("Runtime Error", posStart, posEnd, details, text);
   }
 }
+
+export class UnterminatedStringError extends LangError {
+  constructor(posStart: Position, posEnd: Position, text: string) {
+    super("Unterminated String", posStart, posEnd, "Expected a closing quote", text);
+  }
+}

@@ -103,6 +103,67 @@ describe("Compiler", () => {
     });
   });
 
+  describe("get() / feature properties", () => {
+    it("compiles a bare get() call", () => {
+      expect(compileSrc('get("population")')).toEqual(["get", "population"]);
+    });
+
+    it("preserves a property name with characters invalid in a bare identifier", () => {
+      expect(compileSrc('get("name:en")')).toEqual(["get", "name:en"]);
+    });
+
+    it("combines with arithmetic", () => {
+      expect(compileSrc('get("population") + 1')).toEqual(["+", ["get", "population"], 1]);
+    });
+
+    it("is never treated as a compile-time constant, even with optimize on", () => {
+      // Nothing to fold here -- must stay an expression array either way.
+      expect(compileSrc('get("population") + 1')).toEqual(["+", ["get", "population"], 1]);
+      expect(compileSrc('get("population") + 1', true)).toEqual(["+", ["get", "population"], 1]);
+    });
+
+    it("lets + flatten through it without mistaking its own array for a + chain", () => {
+      // get(...) compiles to ["get", name] -- the flatten check must not
+      // confuse that array with a "+"/"*" chain to splice into.
+      expect(compileSrc('1 + get("a") + 2')).toEqual(["+", 1, ["get", "a"], 2]);
+      expect(compileSrc('get("a") + get("b") + get("c")')).toEqual([
+        "+",
+        ["get", "a"],
+        ["get", "b"],
+        ["get", "c"],
+      ]);
+    });
+
+    it("still folds the constant part of a mixed expression", () => {
+      // The original motivating example for building optimize at all.
+      expect(compileSrc('get("population_density") * (4 + 3)', true)).toEqual([
+        "*",
+        ["get", "population_density"],
+        7,
+      ]);
+    });
+
+    it("compiles under unary minus", () => {
+      expect(compileSrc('-get("population")')).toEqual(["-", ["get", "population"]]);
+    });
+
+    it("compiles under the power operator on either side", () => {
+      expect(compileSrc('get("population") ^ 2')).toEqual(["^", ["get", "population"], 2]);
+      expect(compileSrc('2 ^ get("population")')).toEqual(["^", 2, ["get", "population"]]);
+    });
+
+    it("does not false-positive a division/modulo-by-zero check", () => {
+      // Neither side is a known constant, so there's nothing to catch --
+      // must not throw just because a get() call is present.
+      expect(() => compileSrc('get("population") / get("density")')).not.toThrow();
+      expect(() => compileSrc('get("a") % get("b")')).not.toThrow();
+    });
+
+    it("still catches a literal zero divisor when the other side is a get() call", () => {
+      expect(() => compileSrc('get("population") / 0')).toThrow("Division by zero");
+    });
+  });
+
   describe("power operator", () => {
     it("compiles an ordinary power expression", () => {
       expect(compileSrc("2 ^ 10")).toEqual(["^", 2, 10]);

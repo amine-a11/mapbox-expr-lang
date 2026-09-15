@@ -1,7 +1,7 @@
 import { TokenType, type Token } from "../lexer/token";
 import { InvalidSyntaxError } from "../errors/langError";
 import { Position } from "../errors/position";
-import { BinOpNode, NumberNode, UnaryOpNode, type Node } from "./nodes";
+import { BinOpNode, GetNode, NumberNode, UnaryOpNode, type Node } from "./nodes";
 
 export class Parser {
   private tokIdx: number;
@@ -18,9 +18,6 @@ export class Parser {
   parse(): Node {
     const node = this.expr();
 
-    // expr() stops as soon as it can't extend the expression further --
-    // if we're not sitting on EOF at that point, there's leftover input
-    // the grammar doesn't account for (e.g. "1 + 2 3").
     if (this.currentToken !== undefined && this.currentToken.type !== TokenType.EOF) {
       throw new InvalidSyntaxError(
         this.currentToken.posStart,
@@ -54,6 +51,13 @@ export class Parser {
         const [posStart, posEnd] = this.errorRange();
         throw new InvalidSyntaxError(posStart, posEnd, "Expected ')'", this.text);
       }
+    } else if (tok !== undefined && tok.type === TokenType.KEYWORD && tok.value === "get") {
+      const posStart = tok.posStart;
+      this.advance();
+      this.expect(TokenType.LPAREN, "Expected '('");
+      const propertyTok = this.expect(TokenType.STRING, "Expected a string");
+      const closeParen = this.expect(TokenType.RPAREN, "Expected ')'");
+      return new GetNode(propertyTok, posStart, closeParen.posEnd);
     }
 
     const [posStart, posEnd] = this.errorRange();
@@ -121,5 +125,15 @@ export class Parser {
     }
     const fallback = this.tokens.at(-1)?.posEnd ?? new Position(0, 0, 0);
     return [fallback, fallback];
+  }
+
+  private expect(type: TokenType, message: string): Token {
+    const tok = this.currentToken;
+    if (tok !== undefined && tok.type === type) {
+      this.advance();
+      return tok;
+    }
+    const [posStart, posEnd] = this.errorRange();
+    throw new InvalidSyntaxError(posStart, posEnd, message, this.text);
   }
 }

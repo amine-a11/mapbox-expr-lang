@@ -1,5 +1,5 @@
-import { TokenType, Token, DIGITS } from "./token";
-import { IllegalCharError } from "../errors/langError";
+import { TokenType, Token, DIGITS, LETTERS, LETTERS_DIGITS, KEYWORDS } from "./token";
+import { IllegalCharError, UnterminatedStringError } from "../errors/langError";
 import { Position } from "../errors/position";
 
 export class Lexer {
@@ -24,6 +24,10 @@ export class Lexer {
         this.advance();
       } else if (DIGITS.includes(this.currentChar)) {
         tokens.push(this.makeNumber());
+      } else if (LETTERS.includes(this.currentChar)) {
+        tokens.push(this.makeIdentifier());
+      } else if (this.currentChar === "'" || this.currentChar === '"') {
+        tokens.push(this.makeString());
       } else if (this.currentChar === "+") {
         const posStart = this.pos.copy();
         this.advance();
@@ -88,5 +92,36 @@ export class Lexer {
       return new Token(TokenType.INT, parseInt(num, 10), posStart, this.pos);
     }
     return new Token(TokenType.FLOAT, parseFloat(num), posStart, this.pos);
+  }
+
+  makeIdentifier(): Token {
+    let value: string = "";
+    const posStart = this.pos.copy();
+    while (this.currentChar !== undefined && (LETTERS_DIGITS + "_").includes(this.currentChar)) {
+      value += this.currentChar;
+      this.advance();
+    }
+    const tokType = KEYWORDS.includes(value) ? TokenType.KEYWORD : TokenType.IDENTIFIER;
+    return new Token(tokType, value, posStart, this.pos);
+  }
+
+  makeString(): Token {
+    const quote = this.currentChar;
+    const posStart = this.pos.copy();
+    this.advance(); // consume the opening quote
+
+    let value = "";
+    while (this.currentChar !== undefined && this.currentChar !== quote) {
+      value += this.currentChar;
+      this.advance();
+    }
+
+    if (this.currentChar === undefined) {
+      // Ran out of input before finding the closing quote.
+      throw new UnterminatedStringError(posStart, this.pos, this.text);
+    }
+
+    this.advance(); // consume the closing quote
+    return new Token(TokenType.STRING, value, posStart, this.pos);
   }
 }

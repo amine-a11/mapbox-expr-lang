@@ -2,10 +2,15 @@ import { inspect } from "node:util";
 import type { Position } from "../errors/position";
 
 export const DIGITS = "0123456789";
-
+export const LETTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+export const LETTERS_DIGITS = LETTERS + DIGITS;
+export const KEYWORDS = ["get"];
 export enum TokenType {
   INT,
   FLOAT,
+  STRING,
+  IDENTIFIER,
+  KEYWORD,
   PLUS,
   MINUS,
   MUL,
@@ -23,7 +28,7 @@ export class Token {
 
   constructor(
     public type: TokenType,
-    public value: number | undefined,
+    public value: number | string | undefined,
     posStart: Position,
     posEnd: Position,
   ) {

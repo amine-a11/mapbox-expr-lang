@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Lexer } from "../src/lexer/lexer";
 import { Token, TokenType } from "../src/lexer/token";
-import { IllegalCharError } from "../src/errors/langError";
+import { IllegalCharError, UnterminatedStringError } from "../src/errors/langError";
 
 function tokenize(source: string): Token[] {
   return new Lexer(source).makeToken();
@@ -9,7 +9,7 @@ function tokenize(source: string): Token[] {
 
 // Positions differ per input, so most tests only care about the
 // (type, value) pairs, not the exact source position of each token.
-function simplify(tokens: Token[]): [TokenType, number | undefined][] {
+function simplify(tokens: Token[]): [TokenType, number | string | undefined][] {
   return tokens.map((t) => [t.type, t.value]);
 }
 
@@ -87,5 +87,57 @@ describe("Lexer", () => {
     const tokens = tokenize("42");
     expect(tokens[0]?.posStart).toMatchObject({ idx: 0, ln: 0, col: 0 });
     expect(tokens[0]?.posEnd).toMatchObject({ idx: 2, ln: 0, col: 2 });
+  });
+
+  describe("identifiers and keywords", () => {
+    it("tokenizes a plain identifier", () => {
+      expect(simplify(tokenize("population"))).toEqual([[TokenType.IDENTIFIER, "population"], EOF]);
+    });
+
+    it("recognizes 'get' as a keyword, not a plain identifier", () => {
+      expect(simplify(tokenize("get"))).toEqual([[TokenType.KEYWORD, "get"], EOF]);
+    });
+
+    it("allows digits and underscores after the first letter", () => {
+      expect(simplify(tokenize("road_type2"))).toEqual([[TokenType.IDENTIFIER, "road_type2"], EOF]);
+    });
+  });
+
+  describe("string literals", () => {
+    it("tokenizes a double-quoted string", () => {
+      expect(simplify(tokenize('"population"'))).toEqual([[TokenType.STRING, "population"], EOF]);
+    });
+
+    it("tokenizes a single-quoted string", () => {
+      expect(simplify(tokenize("'population'"))).toEqual([[TokenType.STRING, "population"], EOF]);
+    });
+
+    it("preserves characters that aren't valid in a bare identifier", () => {
+      // The whole reason property names need to be strings, not bare
+      // identifiers: real Mapbox/OSM property names often look like this.
+      expect(simplify(tokenize('"name:en"'))).toEqual([[TokenType.STRING, "name:en"], EOF]);
+      expect(simplify(tokenize('"population-density"'))).toEqual([
+        [TokenType.STRING, "population-density"],
+        EOF,
+      ]);
+    });
+
+    it("tokenizes an empty string", () => {
+      expect(simplify(tokenize('""'))).toEqual([[TokenType.STRING, ""], EOF]);
+    });
+
+    it("throws on an unterminated string", () => {
+      expect(() => tokenize('"population')).toThrow(UnterminatedStringError);
+    });
+
+    it("tokenizes a full get() call", () => {
+      expect(simplify(tokenize('get("population")'))).toEqual([
+        [TokenType.KEYWORD, "get"],
+        [TokenType.LPAREN, undefined],
+        [TokenType.STRING, "population"],
+        [TokenType.RPAREN, undefined],
+        EOF,
+      ]);
+    });
   });
 });

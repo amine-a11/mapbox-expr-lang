@@ -1,4 +1,4 @@
-import { BinOpNode, NumberNode, UnaryOpNode, type Node } from "../parser/nodes";
+import { BinOpNode, GetNode, NumberNode, UnaryOpNode, type Node } from "../parser/nodes";
 import { TokenType } from "../lexer/token";
 import { RuntimeError } from "../errors/langError";
 
@@ -54,14 +54,23 @@ export class Compiler {
       return this.visitBinOpNode(node);
     } else if (node instanceof UnaryOpNode) {
       return this.visitUnaryOpNode(node);
+    } else if (node instanceof GetNode) {
+      return this.visitGetNode(node);
     } else {
       throw new Error("No visit function for " + node);
     }
   }
 
+  private visitGetNode(node: GetNode): CompiledExpression {
+    if (typeof node.tok.value !== "string") {
+      throw new Error(`GetNode token has a non-string value: ${node.tok}`);
+    }
+    return { expr: ["get", node.tok.value], constant: undefined };
+  }
+
   private visitNumberNode(node: NumberNode): CompiledExpression {
-    if (node.tok.value === undefined) {
-      throw new Error(`NumberNode token has no value: ${node.tok}`);
+    if (typeof node.tok.value !== "number") {
+      throw new Error(`NumberNode token has a non-numeric value: ${node.tok}`);
     }
     return { expr: node.tok.value, constant: node.tok.value };
   }
