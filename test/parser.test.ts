@@ -31,6 +31,10 @@ describe("Parser", () => {
       expect(ast("1 * 2 + 3")).toBe("((INT:1, MUL, INT:2), PLUS, INT:3)");
     });
 
+    it("binds % at the same precedence as * and /", () => {
+      expect(ast("1 + 2 % 3")).toBe("(INT:1, PLUS, (INT:2, MOD, INT:3))");
+    });
+
     it("is left-associative for same-precedence operators", () => {
       // "1 - 2 - 3" must parse as (1 - 2) - 3, not 1 - (2 - 3) -- these
       // are both plausible-looking groupings but give different results.

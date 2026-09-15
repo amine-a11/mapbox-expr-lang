@@ -9,6 +9,7 @@ const BINARY_OPERATORS: Partial<Record<TokenType, string>> = {
   [TokenType.MINUS]: "-",
   [TokenType.MUL]: "*",
   [TokenType.DIV]: "/",
+  [TokenType.MOD]: "%",
 };
 
 interface CompiledExpression {
@@ -26,6 +27,8 @@ function applyOperator(type: TokenType, left: number, right: number): number {
       return left * right;
     case TokenType.DIV:
       return left / right;
+    case TokenType.MOD:
+      return left % right;
     default:
       throw new Error(`Compiler: cannot fold unsupported operator ${TokenType[type]}`);
   }
@@ -68,13 +71,23 @@ export class Compiler {
     if (op === undefined) {
       throw new Error(`Compiler.visitBinOpNode: unsupported operator ${node.opToken}`);
     }
-    if (node.opToken.type === TokenType.DIV && right.constant === 0) {
-      throw new RuntimeError(
-        node.rightNode.posStart,
-        node.rightNode.posEnd,
-        "Division by zero",
-        this.text,
-      );
+    if (right.constant === 0) {
+      if (node.opToken.type === TokenType.DIV) {
+        throw new RuntimeError(
+          node.rightNode.posStart,
+          node.rightNode.posEnd,
+          "Division by zero",
+          this.text,
+        );
+      }
+      if (node.opToken.type === TokenType.MOD) {
+        throw new RuntimeError(
+          node.rightNode.posStart,
+          node.rightNode.posEnd,
+          "Modulo by zero",
+          this.text,
+        );
+      }
     }
 
     const constant =

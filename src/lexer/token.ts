@@ -10,6 +10,7 @@ export enum TokenType {
   MINUS,
   MUL,
   DIV,
+  MOD,
   LPAREN,
   RPAREN,
   EOF,

@@ -2,7 +2,7 @@
 
 expr   ::= term ( (PLUS | MINUS) term )*
 
-term   ::= factor ( (MUL | DIV) factor )*
+term   ::= factor ( (MUL | DIV | MOD) factor )*
 
 factor ::= INT
          | FLOAT

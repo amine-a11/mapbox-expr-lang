@@ -27,6 +27,7 @@ describe("Lexer", () => {
     ["-", TokenType.MINUS],
     ["*", TokenType.MUL],
     ["/", TokenType.DIV],
+    ["%", TokenType.MOD],
     ["(", TokenType.LPAREN],
     [")", TokenType.RPAREN],
   ] as const)("tokenizes the operator %s", (source, type) => {

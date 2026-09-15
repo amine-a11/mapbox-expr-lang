@@ -71,7 +71,7 @@ export class Parser {
   }
 
   private term(): Node {
-    return this.binOp(() => this.factor(), [TokenType.MUL, TokenType.DIV]);
+    return this.binOp(() => this.factor(), [TokenType.MUL, TokenType.DIV, TokenType.MOD]);
   }
 
   private expr(): Node {

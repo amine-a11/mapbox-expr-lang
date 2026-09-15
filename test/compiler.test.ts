@@ -27,6 +27,7 @@ describe("Compiler", () => {
       ["-", "1 - 2", ["-", 1, 2]],
       ["*", "1 * 2", ["*", 1, 2]],
       ["/", "1 / 2", ["/", 1, 2]],
+      ["%", "1 % 2", ["%", 1, 2]],
     ] as const)("compiles %s to a Mapbox expression array", (_op, source, expected) => {
       expect(compileSrc(source)).toEqual(expected);
     });
@@ -81,6 +82,10 @@ describe("Compiler", () => {
       expect(compileSrc("100 / 2 / 5")).toEqual(["/", ["/", 100, 2], 5]);
     });
 
+    it("does not flatten % chains (Mapbox's '%' only takes 2 args)", () => {
+      expect(compileSrc("10 % 3 % 2")).toEqual(["%", ["%", 10, 3], 2]);
+    });
+
     it("does not cross-flatten different operators", () => {
       // The "2 * 3" group must stay intact, not merge into the + chain.
       expect(compileSrc("1 + 2 * 3 + 4")).toEqual(["+", 1, ["*", 2, 3], 4]);
@@ -110,6 +115,10 @@ describe("Compiler", () => {
 
     it("folds a long chain to a single number", () => {
       expect(compileSrc("1 + 1 + 1 + 1 + 1", true)).toBe(5);
+    });
+
+    it("folds a modulo expression to its value", () => {
+      expect(compileSrc("10 % 3", true)).toBe(1);
     });
 
     it("does not fold when optimize is false (the default)", () => {
@@ -144,6 +153,38 @@ describe("Compiler", () => {
       } catch (error) {
         if (!(error instanceof RuntimeError)) throw error;
         // "5 / 0": '0' is at index 4.
+        expect(error.posStart).toMatchObject({ idx: 4, ln: 0, col: 4 });
+        expect(error.posEnd).toMatchObject({ idx: 5, ln: 0, col: 5 });
+      }
+    });
+  });
+
+  describe("modulo by zero", () => {
+    it("throws on a literal zero divisor", () => {
+      expect(() => compileSrc("5 % 0")).toThrow(RuntimeError);
+      expect(() => compileSrc("5 % 0")).toThrow("Modulo by zero");
+    });
+
+    it("throws on a zero divisor even without optimize, since constant tracking isn't optional", () => {
+      expect(() => compileSrc("1 % (2 - 2)", false)).toThrow(RuntimeError);
+    });
+
+    it("throws on a zero divisor with optimize on too", () => {
+      expect(() => compileSrc("1 % (2 - 2)", true)).toThrow(RuntimeError);
+    });
+
+    it("does not throw for an ordinary non-zero modulo", () => {
+      expect(() => compileSrc("5 % 2")).not.toThrow();
+      expect(compileSrc("5 % 2")).toEqual(["%", 5, 2]);
+    });
+
+    it("points the error at the divisor, not the whole expression", () => {
+      try {
+        compileSrc("5 % 0");
+        throw new Error("expected compileSrc() to throw, but it didn't");
+      } catch (error) {
+        if (!(error instanceof RuntimeError)) throw error;
+        // "5 % 0": '0' is at index 4.
         expect(error.posStart).toMatchObject({ idx: 4, ln: 0, col: 4 });
         expect(error.posEnd).toMatchObject({ idx: 5, ln: 0, col: 5 });
       }
