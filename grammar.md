@@ -4,9 +4,13 @@ expr   ::= term ( (PLUS | MINUS) term )*
 
 term   ::= factor ( (MUL | DIV | MOD) factor )*
 
-factor ::= INT
+factor ::= (PLUS | MINUS) factor
+         | power
+
+power  ::= atom ( POW factor )*
+
+atom   ::= INT
          | FLOAT
-         | (PLUS | MINUS) factor
          | LPAREN expr RPAREN
 
 ```

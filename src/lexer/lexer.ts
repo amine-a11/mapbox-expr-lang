@@ -44,6 +44,10 @@ export class Lexer {
         const posStart = this.pos.copy();
         this.advance();
         tokens.push(new Token(TokenType.MOD, undefined, posStart, this.pos));
+      } else if (this.currentChar === "^") {
+        const posStart = this.pos.copy();
+        this.advance();
+        tokens.push(new Token(TokenType.POW, undefined, posStart, this.pos));
       } else if (this.currentChar === "(") {
         const posStart = this.pos.copy();
         this.advance();

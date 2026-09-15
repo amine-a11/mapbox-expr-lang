@@ -28,6 +28,7 @@ describe("Compiler", () => {
       ["*", "1 * 2", ["*", 1, 2]],
       ["/", "1 / 2", ["/", 1, 2]],
       ["%", "1 % 2", ["%", 1, 2]],
+      ["^", "1 ^ 2", ["^", 1, 2]],
     ] as const)("compiles %s to a Mapbox expression array", (_op, source, expected) => {
       expect(compileSrc(source)).toEqual(expected);
     });
@@ -86,6 +87,12 @@ describe("Compiler", () => {
       expect(compileSrc("10 % 3 % 2")).toEqual(["%", ["%", 10, 3], 2]);
     });
 
+    it("does not flatten ^ chains (Mapbox's '^' only takes 2 args)", () => {
+      // Also happens to be right-associative, so this nests the opposite
+      // way from -, /, % -- the second operator is the outer one here.
+      expect(compileSrc("2 ^ 3 ^ 2")).toEqual(["^", 2, ["^", 3, 2]]);
+    });
+
     it("does not cross-flatten different operators", () => {
       // The "2 * 3" group must stay intact, not merge into the + chain.
       expect(compileSrc("1 + 2 * 3 + 4")).toEqual(["+", 1, ["*", 2, 3], 4]);
@@ -93,6 +100,24 @@ describe("Compiler", () => {
 
     it("flattens a long chain fully, not just pairwise", () => {
       expect(compileSrc("1 + 1 + 1 + 1 + 1")).toEqual(["+", 1, 1, 1, 1, 1]);
+    });
+  });
+
+  describe("power operator", () => {
+    it("compiles an ordinary power expression", () => {
+      expect(compileSrc("2 ^ 10")).toEqual(["^", 2, 10]);
+    });
+
+    it("right-associativity changes the actual folded value, not just the shape", () => {
+      // 2 ^ (3 ^ 2) = 2 ^ 9 = 512, but (2 ^ 3) ^ 2 = 8 ^ 2 = 64 -- these
+      // are genuinely different numbers, so this proves associativity is
+      // wired correctly end to end, not just structurally plausible.
+      expect(compileSrc("2 ^ 3 ^ 2", true)).toBe(512);
+      expect(compileSrc("(2 ^ 3) ^ 2", true)).toBe(64);
+    });
+
+    it("treats x ^ 0 as 1, not an error", () => {
+      expect(compileSrc("2 ^ 0", true)).toBe(1);
     });
   });
 
@@ -119,6 +144,10 @@ describe("Compiler", () => {
 
     it("folds a modulo expression to its value", () => {
       expect(compileSrc("10 % 3", true)).toBe(1);
+    });
+
+    it("folds a power expression to its value", () => {
+      expect(compileSrc("2 ^ 10", true)).toBe(1024);
     });
 
     it("does not fold when optimize is false (the default)", () => {
@@ -187,6 +216,44 @@ describe("Compiler", () => {
         // "5 % 0": '0' is at index 4.
         expect(error.posStart).toMatchObject({ idx: 4, ln: 0, col: 4 });
         expect(error.posEnd).toMatchObject({ idx: 5, ln: 0, col: 5 });
+      }
+    });
+  });
+
+  describe("non-finite results (mainly from ^)", () => {
+    it("throws when the result overflows to Infinity", () => {
+      expect(() => compileSrc("0 ^ -1", true)).toThrow(RuntimeError);
+      expect(() => compileSrc("0 ^ -1", true)).toThrow("Result is not a finite number: Infinity");
+    });
+
+    it("throws even without optimize, since constant tracking isn't optional", () => {
+      expect(() => compileSrc("0 ^ -1", false)).toThrow(RuntimeError);
+    });
+
+    it("throws when the result is NaN (negative base, fractional exponent)", () => {
+      expect(() => compileSrc("(-4) ^ 0.5", true)).toThrow(RuntimeError);
+      expect(() => compileSrc("(-4) ^ 0.5", true)).toThrow("Result is not a finite number: NaN");
+    });
+
+    it("throws on plain numeric overflow", () => {
+      expect(() => compileSrc("10 ^ 1000", true)).toThrow(RuntimeError);
+    });
+
+    it("does not throw for an ordinary power expression", () => {
+      expect(() => compileSrc("2 ^ 10", true)).not.toThrow();
+    });
+
+    it("points the error at the whole expression, not just one operand", () => {
+      // Unlike division/modulo by zero, there isn't one operand clearly
+      // "at fault" here, so this blames the full BinOpNode span instead.
+      try {
+        compileSrc("0 ^ -1", true);
+        throw new Error("expected compileSrc() to throw, but it didn't");
+      } catch (error) {
+        if (!(error instanceof RuntimeError)) throw error;
+        // "0 ^ -1": spans the whole expression, index 0 to 6.
+        expect(error.posStart).toMatchObject({ idx: 0, ln: 0, col: 0 });
+        expect(error.posEnd).toMatchObject({ idx: 6, ln: 0, col: 6 });
       }
     });
   });

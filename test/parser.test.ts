@@ -44,6 +44,30 @@ describe("Parser", () => {
     });
   });
 
+  describe("power operator", () => {
+    it("binds tighter than * and /", () => {
+      expect(ast("2 * 3 ^ 2")).toBe("(INT:2, MUL, (INT:3, POW, INT:2))");
+    });
+
+    it("is right-associative", () => {
+      // "2 ^ 3 ^ 2" must parse as 2 ^ (3 ^ 2), not (2 ^ 3) ^ 2 -- these
+      // give different results (512 vs 64), unlike + or * where grouping
+      // direction wouldn't matter.
+      expect(ast("2 ^ 3 ^ 2")).toBe("(INT:2, POW, (INT:3, POW, INT:2))");
+      // Confirm the two groupings really are different, via explicit parens.
+      expect(ast("(2 ^ 3) ^ 2")).toBe("((INT:2, POW, INT:3), POW, INT:2)");
+    });
+
+    it("gives unary minus lower precedence, matching standard math convention", () => {
+      // -2 ^ 2 means -(2 ^ 2) = -4, not (-2) ^ 2 = 4.
+      expect(ast("-2 ^ 2")).toBe("(MINUS, (INT:2, POW, INT:2))");
+    });
+
+    it("accepts a unary-signed exponent", () => {
+      expect(ast("2 ^ -2")).toBe("(INT:2, POW, (MINUS, INT:2))");
+    });
+  });
+
   describe("parentheses", () => {
     it("overrides default precedence", () => {
       expect(ast("(1 + 2) * 3")).toBe("((INT:1, PLUS, INT:2), MUL, INT:3)");
@@ -112,6 +136,14 @@ describe("Parser", () => {
 
     it("throws when a factor can't start with the current token", () => {
       expect(() => parse("*3")).toThrow("Unexpected token: MUL");
+    });
+
+    it("throws on a dangling power operator", () => {
+      expect(() => parse("2 ^")).toThrow("Unexpected end of input");
+    });
+
+    it("throws when the exponent can't start with the current token", () => {
+      expect(() => parse("2 ^ * 3")).toThrow("Unexpected token: MUL");
     });
 
     it("throws on an unmatched closing paren", () => {

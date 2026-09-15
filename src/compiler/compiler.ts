@@ -10,6 +10,7 @@ const BINARY_OPERATORS: Partial<Record<TokenType, string>> = {
   [TokenType.MUL]: "*",
   [TokenType.DIV]: "/",
   [TokenType.MOD]: "%",
+  [TokenType.POW]: "^",
 };
 
 interface CompiledExpression {
@@ -29,6 +30,8 @@ function applyOperator(type: TokenType, left: number, right: number): number {
       return left / right;
     case TokenType.MOD:
       return left % right;
+    case TokenType.POW:
+      return left ** right;
     default:
       throw new Error(`Compiler: cannot fold unsupported operator ${TokenType[type]}`);
   }
@@ -94,6 +97,15 @@ export class Compiler {
       left.constant !== undefined && right.constant !== undefined
         ? applyOperator(node.opToken.type, left.constant, right.constant)
         : undefined;
+
+    if (constant !== undefined && !Number.isFinite(constant)) {
+      throw new RuntimeError(
+        node.posStart,
+        node.posEnd,
+        `Result is not a finite number: ${constant}`,
+        this.text,
+      );
+    }
 
     if (this.optimize && constant !== undefined) {
       return { expr: constant, constant };

@@ -11,6 +11,7 @@ export enum TokenType {
   MUL,
   DIV,
   MOD,
+  POW,
   LPAREN,
   RPAREN,
   EOF,

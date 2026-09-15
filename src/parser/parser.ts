@@ -39,13 +39,9 @@ export class Parser {
     return this.currentToken;
   }
 
-  private factor(): Node {
+  private atom(): Node {
     const tok = this.currentToken;
-    if (tok !== undefined && (tok.type === TokenType.PLUS || tok.type === TokenType.MINUS)) {
-      this.advance();
-      const operand = this.factor();
-      return new UnaryOpNode(tok, operand);
-    } else if (tok !== undefined && (tok.type === TokenType.INT || tok.type === TokenType.FLOAT)) {
+    if (tok !== undefined && (tok.type === TokenType.INT || tok.type === TokenType.FLOAT)) {
       this.advance();
       return new NumberNode(tok);
     } else if (tok !== undefined && tok.type === TokenType.LPAREN) {
@@ -65,26 +61,54 @@ export class Parser {
     throw new InvalidSyntaxError(
       posStart,
       posEnd,
-      isEnd ? "Unexpected end of input" : `Unexpected token: ${tok}`,
+      isEnd
+        ? "Unexpected end of input, expected int, float, '+', '-' or '('"
+        : `Unexpected token: ${tok}, expected int, float, '+', '-' or '('`,
       this.text,
     );
   }
 
+  private power(): Node {
+    return this.binOp(
+      () => this.atom(),
+      [TokenType.POW],
+      () => this.factor(),
+    );
+  }
+  private factor(): Node {
+    const tok = this.currentToken;
+    if (tok !== undefined && (tok.type === TokenType.PLUS || tok.type === TokenType.MINUS)) {
+      this.advance();
+      const operand = this.factor();
+      return new UnaryOpNode(tok, operand);
+    }
+
+    return this.power();
+  }
+
   private term(): Node {
-    return this.binOp(() => this.factor(), [TokenType.MUL, TokenType.DIV, TokenType.MOD]);
+    return this.binOp(
+      () => this.factor(),
+      [TokenType.MUL, TokenType.DIV, TokenType.MOD],
+      () => this.factor(),
+    );
   }
 
   private expr(): Node {
-    return this.binOp(() => this.term(), [TokenType.PLUS, TokenType.MINUS]);
+    return this.binOp(
+      () => this.term(),
+      [TokenType.PLUS, TokenType.MINUS],
+      () => this.term(),
+    );
   }
 
-  private binOp(func: () => Node, ops: TokenType[]): Node {
-    let left = func();
+  private binOp(func1: () => Node, ops: TokenType[], func2: () => Node): Node {
+    let left = func1();
 
     while (this.currentToken !== undefined && ops.includes(this.currentToken.type)) {
       const opToken = this.currentToken;
       this.advance();
-      const right = func();
+      const right = func2();
       left = new BinOpNode(left, opToken, right);
     }
 
