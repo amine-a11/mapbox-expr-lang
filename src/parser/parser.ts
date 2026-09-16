@@ -7,6 +7,7 @@ import {
   GetNode,
   IfNode,
   NumberNode,
+  StringNode,
   UnaryOpNode,
   VarAccessNode,
   VarAssignNode,
@@ -113,6 +114,9 @@ export class Parser {
     if (tok !== undefined && (tok.type === TokenType.INT || tok.type === TokenType.FLOAT)) {
       this.advance();
       return new NumberNode(tok);
+    } else if (tok !== undefined && tok.type === TokenType.STRING) {
+      this.advance();
+      return new StringNode(tok);
     } else if (
       tok !== undefined &&
       tok.type === TokenType.KEYWORD &&
@@ -142,7 +146,7 @@ export class Parser {
     const [posStart, posEnd] = this.errorRange();
     const isEnd = tok === undefined || tok.type === TokenType.EOF;
     const expected =
-      "int, float, '+', '-', '(', 'get(...)', 'true', 'false', an identifier, or 'if'";
+      "int, float, string, '+', '-', '(', 'get(...)', 'true', 'false', an identifier, or 'if'";
     throw new InvalidSyntaxError(
       posStart,
       posEnd,

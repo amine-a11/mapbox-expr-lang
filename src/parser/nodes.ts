@@ -4,6 +4,7 @@ import type { Position } from "../errors/position";
 
 export type Node =
   | NumberNode
+  | StringNode
   | BinOpNode
   | UnaryOpNode
   | GetNode
@@ -18,6 +19,24 @@ export interface Positioned {
 }
 
 export class NumberNode implements Positioned {
+  posStart: Position;
+  posEnd: Position;
+
+  constructor(public tok: Token) {
+    this.posStart = tok.posStart;
+    this.posEnd = tok.posEnd;
+  }
+
+  toString(): string {
+    return `${this.tok}`;
+  }
+
+  [inspect.custom](): string {
+    return this.toString();
+  }
+}
+
+export class StringNode implements Positioned {
   posStart: Position;
   posEnd: Position;
 

@@ -4,6 +4,7 @@ import {
   GetNode,
   IfNode,
   NumberNode,
+  StringNode,
   UnaryOpNode,
   VarAccessNode,
   VarAssignNode,
@@ -39,17 +40,20 @@ function operatorSymbol(token: Token): string | undefined {
 
 const NUMERIC_OPERATORS = new Set(["+", "-", "*", "/", "%", "^"]);
 
-function cannotBeBoolean(node: Node): boolean {
-  if (node instanceof NumberNode) return true;
+// Returns the type a node is provably NOT a boolean as, or undefined when
+// it might be boolean (or we can't tell -- get(), variables, if-results).
+function nonBooleanType(node: Node): "number" | "string" | undefined {
+  if (node instanceof NumberNode) return "number";
+  if (node instanceof StringNode) return "string";
   if (node instanceof BinOpNode) {
     const op = operatorSymbol(node.opToken);
-    return op !== undefined && NUMERIC_OPERATORS.has(op);
+    return op !== undefined && NUMERIC_OPERATORS.has(op) ? "number" : undefined;
   }
   if (node instanceof UnaryOpNode) {
-    if (node.opTok.type === TokenType.MINUS) return true;
-    if (node.opTok.type === TokenType.PLUS) return cannotBeBoolean(node.node);
+    if (node.opTok.type === TokenType.MINUS) return "number";
+    if (node.opTok.type === TokenType.PLUS) return nonBooleanType(node.node);
   }
-  return false;
+  return undefined;
 }
 
 function referencesAnyOf(node: Node, names: ReadonlySet<string>): boolean {
@@ -95,6 +99,7 @@ export class Compiler {
 
   compile(node: Node): MapboxExpression {
     if (node instanceof NumberNode) return this.visitNumberNode(node);
+    else if (node instanceof StringNode) return this.visitStringNode(node);
     else if (node instanceof BooleanNode) return this.visitBooleanNode(node);
     else if (node instanceof BinOpNode) return this.visitBinOpNode(node);
     else if (node instanceof UnaryOpNode) return this.visitUnaryOpNode(node);
@@ -115,6 +120,13 @@ export class Compiler {
   private visitNumberNode(node: NumberNode): MapboxExpression {
     if (typeof node.tok.value !== "number") {
       throw new Error(`NumberNode token has a non-numeric value: ${node.tok}`);
+    }
+    return node.tok.value;
+  }
+
+  private visitStringNode(node: StringNode): MapboxExpression {
+    if (typeof node.tok.value !== "string") {
+      throw new Error(`StringNode token has a non-string value: ${node.tok}`);
     }
     return node.tok.value;
   }
@@ -181,11 +193,12 @@ export class Compiler {
   private visitIfNode(node: IfNode): MapboxExpression {
     const parts: MapboxExpression[] = [];
     for (const { condition, value } of node.cases) {
-      if (cannotBeBoolean(condition)) {
+      const badType = nonBooleanType(condition);
+      if (badType !== undefined) {
         throw new TypeMismatchError(
           condition.posStart,
           condition.posEnd,
-          "'if'/'elif' condition must be a boolean, but this is a number",
+          `'if'/'elif' condition must be a boolean, but this is a ${badType}`,
           this.text,
         );
       }
@@ -205,19 +218,21 @@ export class Compiler {
     }
 
     if (op === "all" || op === "any") {
-      if (cannotBeBoolean(node.leftNode)) {
+      const leftBadType = nonBooleanType(node.leftNode);
+      if (leftBadType !== undefined) {
         throw new TypeMismatchError(
           node.leftNode.posStart,
           node.leftNode.posEnd,
-          `'${node.opToken.value}' requires a boolean operand, but this is a number`,
+          `'${node.opToken.value}' requires a boolean operand, but this is a ${leftBadType}`,
           this.text,
         );
       }
-      if (cannotBeBoolean(node.rightNode)) {
+      const rightBadType = nonBooleanType(node.rightNode);
+      if (rightBadType !== undefined) {
         throw new TypeMismatchError(
           node.rightNode.posStart,
           node.rightNode.posEnd,
-          `'${node.opToken.value}' requires a boolean operand, but this is a number`,
+          `'${node.opToken.value}' requires a boolean operand, but this is a ${rightBadType}`,
           this.text,
         );
       }
@@ -240,11 +255,12 @@ export class Compiler {
     }
 
     if (node.opTok.type === TokenType.KEYWORD && node.opTok.value === "not") {
-      if (cannotBeBoolean(node.node)) {
+      const badType = nonBooleanType(node.node);
+      if (badType !== undefined) {
         throw new TypeMismatchError(
           node.node.posStart,
           node.node.posEnd,
-          "'not' requires a boolean operand, but this is a number",
+          `'not' requires a boolean operand, but this is a ${badType}`,
           this.text,
         );
       }

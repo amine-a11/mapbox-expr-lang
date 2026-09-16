@@ -20,6 +20,7 @@ power      ::= atom ( POW factor )*
 
 atom       ::= INT
              | FLOAT
+             | STRING
              | IDENTIFIER
              | KEYWORD:true
              | KEYWORD:false

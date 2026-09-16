@@ -6,6 +6,7 @@ import {
   BooleanNode,
   IfNode,
   NumberNode,
+  StringNode,
   UnaryOpNode,
   VarAccessNode,
   VarAssignNode,
@@ -36,6 +37,15 @@ describe("Parser", () => {
     it("parses 'true' and 'false' as boolean literals, not numbers", () => {
       expect(ast("true")).toBe("KEYWORD:true");
       expect(ast("false")).toBe("KEYWORD:false");
+    });
+
+    it("parses a double-quoted or single-quoted string as a bare atom", () => {
+      expect(ast('"red"')).toBe("STRING:red");
+      expect(ast("'red'")).toBe("STRING:red");
+    });
+
+    it("parses an empty string", () => {
+      expect(ast('""')).toBe("STRING:");
     });
   });
 
@@ -153,6 +163,20 @@ describe("Parser", () => {
       expect(ast("true == false")).toBe("(KEYWORD:true, EE, KEYWORD:false)");
       expect(ast("true and false")).toBe("(KEYWORD:true, KEYWORD:and, KEYWORD:false)");
       expect(ast("not true")).toBe("(KEYWORD:not, KEYWORD:true)");
+    });
+  });
+
+  describe("string literals", () => {
+    it("combines with comparisons, get(), and if expressions like any other atom", () => {
+      expect(ast('"road" == "water"')).toBe("(STRING:road, EE, STRING:water)");
+      expect(ast('get("type") == "road"')).toBe("(GET:type, EE, STRING:road)");
+      expect(ast('if get("type") == "road" then "red" else "blue"')).toBe(
+        "(IF (GET:type, EE, STRING:road) -> STRING:red ELSE STRING:blue)",
+      );
+    });
+
+    it("is usable as the value of a variable assignment", () => {
+      expect(ast('var color = "red"')).toBe("(VAR:color, STRING:red, IDENTIFIER:color)");
     });
   });
 
@@ -304,6 +328,14 @@ describe("Parser", () => {
       }
     });
 
+    it("builds a StringNode wrapping the string token", () => {
+      const node = parse('"red"');
+      expect(node).toBeInstanceOf(StringNode);
+      if (node instanceof StringNode) {
+        expect(node.tok.value).toBe("red");
+      }
+    });
+
     it("builds a VarAssignNode with the name token, value, and body in the right place", () => {
       const node = parse("var a = 5");
       expect(node).toBeInstanceOf(VarAssignNode);
@@ -358,6 +390,10 @@ describe("Parser", () => {
       // Regression: this list went stale once already when get() was
       // added but this message wasn't updated to mention it.
       expect(() => parse("*3")).toThrow("'get(...)'");
+    });
+
+    it("mentions 'string' as a valid way to start an atom", () => {
+      expect(() => parse("*3")).toThrow("string");
     });
 
     it("throws on a dangling power operator", () => {

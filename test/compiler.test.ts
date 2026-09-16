@@ -56,6 +56,46 @@ describe("Compiler", () => {
     });
   });
 
+  describe("string literals", () => {
+    it("compiles a double-quoted or single-quoted string to a raw JS string", () => {
+      expect(compileSrc('"red"')).toBe("red");
+      expect(compileSrc("'red'")).toBe("red");
+    });
+
+    it("compiles an empty string", () => {
+      expect(compileSrc('""')).toBe("");
+    });
+
+    it("preserves characters that aren't valid in a bare identifier", () => {
+      expect(compileSrc('"name:en"')).toBe("name:en");
+    });
+
+    it("is not wrapped in a 'literal' expression -- a bare string is already a valid value", () => {
+      const result = compileSrc('"red"');
+      expect(Array.isArray(result)).toBe(false);
+    });
+
+    it("combines with comparisons, get(), and if expressions", () => {
+      expect(compileSrc('"road" == "water"')).toEqual(["==", "road", "water"]);
+      expect(compileSrc('get("type") == "road"')).toEqual(["==", ["get", "type"], "road"]);
+      expect(compileSrc('if get("type") == "road" then "red" else "blue"')).toEqual([
+        "case",
+        ["==", ["get", "type"], "road"],
+        "red",
+        "blue",
+      ]);
+    });
+
+    it("is usable as the value of a variable assignment", () => {
+      expect(compileSrc('var color = "red"\ncolor')).toEqual([
+        "let",
+        "color",
+        "red",
+        ["var", "color"],
+      ]);
+    });
+  });
+
   describe("binary operators", () => {
     it.each([
       ["+", "1 + 2", ["+", 1, 2]],
@@ -294,6 +334,25 @@ describe("Compiler", () => {
       );
     });
 
+    it("rejects a string operand to 'and'/'or'/'not'", () => {
+      expect(() => compileSrc('"hello" and true')).toThrow(TypeMismatchError);
+      expect(() => compileSrc('"hello" and true')).toThrow(
+        "'and' requires a boolean operand, but this is a string",
+      );
+      expect(() => compileSrc('true or "hello"')).toThrow(
+        "'or' requires a boolean operand, but this is a string",
+      );
+      expect(() => compileSrc('not "hello"')).toThrow(
+        "'not' requires a boolean operand, but this is a string",
+      );
+    });
+
+    it("rejects a string condition in an if/elif", () => {
+      expect(() => compileSrc('if "hello" then 1 else 2')).toThrow(
+        "'if'/'elif' condition must be a boolean, but this is a string",
+      );
+    });
+
     it("rejects a number operand to 'or'", () => {
       expect(() => compileSrc("1 or true")).toThrow(
         "'or' requires a boolean operand, but this is a number",
@@ -328,6 +387,10 @@ describe("Compiler", () => {
       expect(() => compileSrc("(1 > 2) and (3 < 4)")).not.toThrow();
       expect(() => compileSrc("true and false")).not.toThrow();
       expect(() => compileSrc("not (1 > 2)")).not.toThrow();
+    });
+
+    it("allows a string as a comparison operand (only and/or/not/if reject strings)", () => {
+      expect(() => compileSrc('("road" == "water") and true')).not.toThrow();
     });
 
     it("allows get(), variables, and if-results, since their type can't be known statically", () => {
