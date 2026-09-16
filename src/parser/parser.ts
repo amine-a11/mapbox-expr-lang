@@ -6,18 +6,26 @@ import {
   BooleanNode,
   CallNode,
   ConstantNode,
+  CubicBezierInterpolationNode,
+  ExponentialInterpolationNode,
   GetNode,
   IfNode,
+  InterpolateNode,
+  LinearInterpolationNode,
   MatchNode,
   NumberNode,
+  StepNode,
   StringNode,
   UnaryOpNode,
   VarAccessNode,
   VarAssignNode,
+  type InterpolateStop,
+  type InterpolationType,
   type IfCase,
   type MatchCase,
   type MatchLabel,
   type Node,
+  type StepStop,
 } from "./nodes";
 
 export class Parser {
@@ -154,12 +162,22 @@ export class Parser {
       return this.ifExpr();
     } else if (tok !== undefined && tok.type === TokenType.KEYWORD && tok.value === "match") {
       return this.matchExpr();
+    } else if (
+      tok !== undefined &&
+      tok.type === TokenType.KEYWORD &&
+      (tok.value === "interpolate" ||
+        tok.value === "interpolateHcl" ||
+        tok.value === "interpolateLab")
+    ) {
+      return this.interpolateExpr(tok);
+    } else if (tok !== undefined && tok.type === TokenType.KEYWORD && tok.value === "step") {
+      return this.stepExpr();
     }
 
     const [posStart, posEnd] = this.errorRange();
     const isEnd = tok === undefined || tok.type === TokenType.EOF;
     const expected =
-      "int, float, string, '+', '-', '(', 'get(...)', 'true', 'false', an identifier, 'if', or 'match'";
+      "int, float, string, '+', '-', '(', 'get(...)', 'true', 'false', an identifier, 'if', 'match', 'interpolate', 'interpolateHcl', 'interpolateLab', or 'step'";
     throw new InvalidSyntaxError(
       posStart,
       posEnd,
@@ -314,6 +332,141 @@ export class Parser {
     this.advance(); // consume DOT -- caller already confirmed it's there
     const memberTok = this.expect(TokenType.IDENTIFIER, "Expected a constant name");
     return new ConstantNode(namespaceTok, memberTok);
+  }
+
+  private interpolationType(): InterpolationType {
+    const tok = this.currentToken;
+    if (tok !== undefined && tok.type === TokenType.IDENTIFIER && tok.value === "linear") {
+      this.advance();
+      return new LinearInterpolationNode(tok);
+    }
+    if (tok !== undefined && tok.type === TokenType.IDENTIFIER && tok.value === "exponential") {
+      this.advance();
+      this.expect(TokenType.LPAREN, "Expected '('");
+      const base = this.expr();
+      const closeParen = this.expect(TokenType.RPAREN, "Expected ')'");
+      return new ExponentialInterpolationNode(base, tok.posStart, closeParen.posEnd);
+    }
+    if (tok !== undefined && tok.type === TokenType.IDENTIFIER && tok.value === "cubicBezier") {
+      this.advance();
+      this.expect(TokenType.LPAREN, "Expected '('");
+      const x1 = this.expr();
+      this.expect(TokenType.COMMA, "Expected ','");
+      const y1 = this.expr();
+      this.expect(TokenType.COMMA, "Expected ','");
+      const x2 = this.expr();
+      this.expect(TokenType.COMMA, "Expected ','");
+      const y2 = this.expr();
+      const closeParen = this.expect(TokenType.RPAREN, "Expected ')'");
+      return new CubicBezierInterpolationNode(x1, y1, x2, y2, tok.posStart, closeParen.posEnd);
+    }
+
+    const [posStart, posEnd] = this.errorRange();
+    const isEnd = tok === undefined || tok.type === TokenType.EOF;
+    const expected = "'linear', 'exponential(base)', or 'cubicBezier(x1, y1, x2, y2)'";
+    throw new InvalidSyntaxError(
+      posStart,
+      posEnd,
+      isEnd
+        ? `Unexpected end of input, expected ${expected}`
+        : `Unexpected token: ${tok}, expected ${expected}`,
+      this.text,
+    );
+  }
+
+  private stopInput(): NumberNode {
+    const tok = this.currentToken;
+    if (tok !== undefined && (tok.type === TokenType.INT || tok.type === TokenType.FLOAT)) {
+      this.advance();
+      return new NumberNode(tok);
+    }
+
+    const [posStart, posEnd] = this.errorRange();
+    const isEnd = tok === undefined || tok.type === TokenType.EOF;
+    const expected = "a number";
+    throw new InvalidSyntaxError(
+      posStart,
+      posEnd,
+      isEnd
+        ? `Unexpected end of input, expected ${expected}`
+        : `Unexpected token: ${tok}, expected ${expected}`,
+      this.text,
+    );
+  }
+
+  private moreStopsFollow(): boolean {
+    let idx = this.tokIdx;
+    while (this.tokens[idx]?.type === TokenType.NEWLINE) idx++;
+    const numTok = this.tokens[idx];
+    if (
+      numTok === undefined ||
+      (numTok.type !== TokenType.INT && numTok.type !== TokenType.FLOAT)
+    ) {
+      return false;
+    }
+    const thenTok = this.tokens[idx + 1];
+    return thenTok !== undefined && thenTok.type === TokenType.KEYWORD && thenTok.value === "then";
+  }
+
+  private interpolateVariant(tok: Token): "interpolate" | "interpolateHcl" | "interpolateLab" {
+    if (tok.value === "interpolateHcl") return "interpolateHcl";
+    if (tok.value === "interpolateLab") return "interpolateLab";
+    return "interpolate";
+  }
+
+  private interpolateExpr(startTok: Token): Node {
+    const variant = this.interpolateVariant(startTok);
+    const posStart = startTok.posStart;
+    this.advance(); // consume the interpolate/interpolateHcl/interpolateLab keyword
+
+    const interpolationType = this.interpolationType();
+    const input = this.expr();
+    this.skipNewlines();
+
+    const stops: InterpolateStop[] = [];
+    const firstInput = this.stopInput();
+    this.expectKeyword("then", "Expected 'then'");
+    this.skipNewlines();
+    const firstValue = this.expr();
+    stops.push({ input: firstInput, value: firstValue });
+
+    while (this.moreStopsFollow()) {
+      this.skipNewlines();
+      const stopInput = this.stopInput();
+      this.expectKeyword("then", "Expected 'then'");
+      this.skipNewlines();
+      const value = this.expr();
+      stops.push({ input: stopInput, value });
+    }
+
+    return new InterpolateNode(variant, interpolationType, input, stops, posStart);
+  }
+
+  private stepExpr(): Node {
+    const stepTok = this.expectKeyword("step", "Expected 'step'");
+    const input = this.expr();
+    this.skipNewlines();
+    this.expectKeyword("default", "Expected 'default'");
+    const defaultValue = this.expr();
+    this.skipNewlines();
+
+    const stops: StepStop[] = [];
+    const firstInput = this.stopInput();
+    this.expectKeyword("then", "Expected 'then'");
+    this.skipNewlines();
+    const firstValue = this.expr();
+    stops.push({ input: firstInput, value: firstValue });
+
+    while (this.moreStopsFollow()) {
+      this.skipNewlines();
+      const stopInput = this.stopInput();
+      this.expectKeyword("then", "Expected 'then'");
+      this.skipNewlines();
+      const value = this.expr();
+      stops.push({ input: stopInput, value });
+    }
+
+    return new StepNode(input, defaultValue, stops, stepTok.posStart);
   }
 
   private callExpr(nameTok: Token): Node {

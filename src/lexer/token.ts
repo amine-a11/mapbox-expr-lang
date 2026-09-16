@@ -17,6 +17,11 @@ export const KEYWORDS = [
   "match",
   "true",
   "false",
+  "interpolate",
+  "interpolateHcl",
+  "interpolateLab",
+  "step",
+  "default",
 ];
 export enum TokenType {
   INT,

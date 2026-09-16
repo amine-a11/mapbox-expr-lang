@@ -14,7 +14,9 @@ export type Node =
   | IfNode
   | MatchNode
   | CallNode
-  | ConstantNode;
+  | ConstantNode
+  | InterpolateNode
+  | StepNode;
 
 export interface Positioned {
   posStart: Position;
@@ -260,6 +262,135 @@ export class ConstantNode implements Positioned {
 
   toString(): string {
     return `CONST:${this.namespaceTok.value}.${this.memberTok.value}`;
+  }
+
+  [inspect.custom](): string {
+    return this.toString();
+  }
+}
+
+export class LinearInterpolationNode implements Positioned {
+  posStart: Position;
+  posEnd: Position;
+
+  constructor(tok: Token) {
+    this.posStart = tok.posStart;
+    this.posEnd = tok.posEnd;
+  }
+
+  toString(): string {
+    return "LINEAR";
+  }
+
+  [inspect.custom](): string {
+    return this.toString();
+  }
+}
+
+export class ExponentialInterpolationNode implements Positioned {
+  constructor(
+    public base: Node,
+    public posStart: Position,
+    public posEnd: Position,
+  ) {}
+
+  toString(): string {
+    return `EXPONENTIAL(${this.base})`;
+  }
+
+  [inspect.custom](): string {
+    return this.toString();
+  }
+}
+
+export class CubicBezierInterpolationNode implements Positioned {
+  constructor(
+    public x1: Node,
+    public y1: Node,
+    public x2: Node,
+    public y2: Node,
+    public posStart: Position,
+    public posEnd: Position,
+  ) {}
+
+  toString(): string {
+    return `CUBIC_BEZIER(${this.x1}, ${this.y1}, ${this.x2}, ${this.y2})`;
+  }
+
+  [inspect.custom](): string {
+    return this.toString();
+  }
+}
+
+export type InterpolationType =
+  LinearInterpolationNode | ExponentialInterpolationNode | CubicBezierInterpolationNode;
+
+export interface InterpolateStop {
+  input: NumberNode;
+  value: Node;
+}
+
+export class InterpolateNode implements Positioned {
+  posStart: Position;
+  posEnd: Position;
+
+  constructor(
+    public variant: "interpolate" | "interpolateHcl" | "interpolateLab",
+    public interpolationType: InterpolationType,
+    public input: Node,
+    public stops: InterpolateStop[],
+    posStart: Position,
+  ) {
+    const lastStop = stops.at(-1);
+    if (lastStop === undefined) {
+      throw new Error("InterpolateNode requires at least one stop");
+    }
+    this.posStart = posStart;
+    this.posEnd = lastStop.value.posEnd;
+  }
+
+  toString(): string {
+    const label =
+      this.variant === "interpolate"
+        ? "INTERPOLATE"
+        : this.variant === "interpolateHcl"
+          ? "INTERPOLATE_HCL"
+          : "INTERPOLATE_LAB";
+    const stops = this.stops.map((s) => `${s.input} -> ${s.value}`).join(", ");
+    return `(${label} ${this.interpolationType} ${this.input} ${stops})`;
+  }
+
+  [inspect.custom](): string {
+    return this.toString();
+  }
+}
+
+export interface StepStop {
+  input: NumberNode;
+  value: Node;
+}
+
+export class StepNode implements Positioned {
+  posStart: Position;
+  posEnd: Position;
+
+  constructor(
+    public input: Node,
+    public defaultValue: Node,
+    public stops: StepStop[],
+    posStart: Position,
+  ) {
+    const lastStop = stops.at(-1);
+    if (lastStop === undefined) {
+      throw new Error("StepNode requires at least one stop");
+    }
+    this.posStart = posStart;
+    this.posEnd = lastStop.value.posEnd;
+  }
+
+  toString(): string {
+    const stops = this.stops.map((s) => `${s.input} -> ${s.value}`).join(", ");
+    return `(STEP ${this.input} DEFAULT ${this.defaultValue} ${stops})`;
   }
 
   [inspect.custom](): string {

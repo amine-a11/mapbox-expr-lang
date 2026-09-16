@@ -3,16 +3,24 @@ import {
   BooleanNode,
   CallNode,
   ConstantNode,
+  CubicBezierInterpolationNode,
+  ExponentialInterpolationNode,
   GetNode,
   IfNode,
+  InterpolateNode,
+  LinearInterpolationNode,
   MatchNode,
   NumberNode,
+  StepNode,
   StringNode,
   UnaryOpNode,
   VarAccessNode,
   VarAssignNode,
+  type InterpolateStop,
+  type InterpolationType,
   type MatchLabel,
   type Node,
+  type StepStop,
 } from "../parser/nodes";
 import { TokenType, type Token } from "../lexer/token";
 import { RuntimeError, TypeMismatchError } from "../errors/langError";
@@ -44,34 +52,15 @@ function operatorSymbol(token: Token): string | undefined {
 
 const NUMERIC_OPERATORS = new Set(["+", "-", "*", "/", "%", "^"]);
 
-// Every built-in function this language exposes. Names match Mapbox's own
-// operator names except where Mapbox uses a hyphen (invalid in an
-// identifier, and ambiguous with subtraction if it were allowed) -- those
-// are camelCase instead: to-number -> toNumber, to-color -> toColor, etc.
-//
-// "random", "hsl", and "hsla" are deliberately left out: verified against
-// the real evaluator (@maplibre/maplibre-gl-style-spec) that none of the
-// three parse there at all ("Unknown expression"), even though they're
-// documented Mapbox operators -- a genuine Mapbox/MapLibre divergence, not
-// an oversight. Revisit if MapLibre ever adds support.
-//
-// minArgs/maxArgs are enforced here (maxArgs undefined = no upper limit)
-// even where Mapbox itself is looser -- e.g. Mapbox's own "min"/"max"/
-// "concat" accept zero arguments, but a zero-argument call is never
-// meaningful in practice, so this language requires at least one.
-//
-// returnType is set only where the function's result can never be
-// boolean, so nonBooleanType() below can catch e.g. "abs(x) and true" the
-// same way it already catches "5 and true". Left unset (allowing anything,
-// deferring to Mapbox) wherever the return type varies with the arguments
-// (coalesce) or is genuinely boolean (toBoolean).
-type NonBooleanType = "number" | "string" | "color" | "object";
+
+type DefiniteType = "number" | "string" | "boolean" | "color" | "object";
+type NonBooleanType = Exclude<DefiniteType, "boolean">;
 
 interface FunctionSpec {
   mapboxName: string;
   minArgs: number;
   maxArgs: number | undefined;
-  returnType?: NonBooleanType;
+  returnType?: DefiniteType;
 }
 
 const FUNCTIONS: Record<string, FunctionSpec> = {
@@ -110,7 +99,7 @@ const FUNCTIONS: Record<string, FunctionSpec> = {
     maxArgs: 1,
     returnType: "string",
   } satisfies FunctionSpec,
-  toBoolean: { mapboxName: "to-boolean", minArgs: 1, maxArgs: 1 },
+  toBoolean: { mapboxName: "to-boolean", minArgs: 1, maxArgs: 1, returnType: "boolean" },
   toColor: { mapboxName: "to-color", minArgs: 1, maxArgs: undefined, returnType: "color" },
   typeof: { mapboxName: "typeof", minArgs: 1, maxArgs: 1, returnType: "string" },
 
@@ -118,23 +107,10 @@ const FUNCTIONS: Record<string, FunctionSpec> = {
   coalesce: { mapboxName: "coalesce", minArgs: 1, maxArgs: undefined },
 };
 
-// Namespaced, zero-argument operators, e.g. "math.e" -> ["e"]. Grouped by
-// Mapbox's own category headings for discoverability, following the request
-// to move away from e()/pi()/ln2() as zero-arg calls -- these read more like
-// constants/environment values than functions, so they get their own
-// dotted-access grammar instead of overloading call syntax.
-//
-// Every member here was verified zero-arg and supported against the real
-// evaluator (@maplibre/maplibre-gl-style-spec). Two documented Mapbox
-// operators from the Camera category, "pitch" and "distance-from-center",
-// were deliberately left out: verified "Unknown expression" against
-// MapLibre, the same kind of Mapbox/MapLibre divergence already found for
-// random/hsl/hsla. Revisit if MapLibre ever adds support. "feature-state" is
-// excluded too, but for a different reason -- it takes a string argument
-// like get(), so it isn't a zero-arg constant at all.
+
 interface ConstantSpec {
   mapboxName: string;
-  returnType?: NonBooleanType;
+  returnType?: DefiniteType;
 }
 
 const CONSTANTS: Record<string, Record<string, ConstantSpec>> = {
@@ -165,18 +141,24 @@ function describeArgCount(spec: FunctionSpec): string {
   return `${spec.minArgs}-${spec.maxArgs} arguments`;
 }
 
-// Returns the type a node is provably NOT a boolean as, or undefined when
-// it might be boolean (or we can't tell -- get(), variables, if-results).
-function nonBooleanType(node: Node): NonBooleanType | undefined {
+const BOOLEAN_OPERATORS = new Set(["==", "!=", "<", "<=", ">", ">=", "all", "any"]);
+
+function inferType(node: Node): DefiniteType | undefined {
   if (node instanceof NumberNode) return "number";
   if (node instanceof StringNode) return "string";
+  if (node instanceof BooleanNode) return "boolean";
   if (node instanceof BinOpNode) {
     const op = operatorSymbol(node.opToken);
-    return op !== undefined && NUMERIC_OPERATORS.has(op) ? "number" : undefined;
+    if (op === undefined) return undefined;
+    if (NUMERIC_OPERATORS.has(op)) return "number";
+    if (BOOLEAN_OPERATORS.has(op)) return "boolean";
+    return undefined;
   }
   if (node instanceof UnaryOpNode) {
     if (node.opTok.type === TokenType.MINUS) return "number";
-    if (node.opTok.type === TokenType.PLUS) return nonBooleanType(node.node);
+    if (node.opTok.type === TokenType.KEYWORD && node.opTok.value === "not") return "boolean";
+    if (node.opTok.type === TokenType.PLUS) return inferType(node.node);
+    return undefined;
   }
   if (node instanceof CallNode) {
     const name = typeof node.nameTok.value === "string" ? node.nameTok.value : undefined;
@@ -192,27 +174,18 @@ function nonBooleanType(node: Node): NonBooleanType | undefined {
   return undefined;
 }
 
-// "object" is the only NonBooleanType that needs "an" instead of "a".
-function withArticle(type: NonBooleanType): string {
-  return type === "object" ? `an ${type}` : `a ${type}`;
+function nonBooleanType(node: Node): NonBooleanType | undefined {
+  const type = inferType(node);
+  return type !== undefined && type !== "boolean" ? type : undefined;
 }
 
-const BOOLEAN_OPERATORS = new Set(["==", "!=", "<", "<=", ">", ">=", "all", "any"]);
+function nonNumericType(node: Node): Exclude<DefiniteType, "number"> | undefined {
+  const type = inferType(node);
+  return type !== undefined && type !== "number" ? type : undefined;
+}
 
-// Returns true when a node is provably boolean-typed -- the opposite check
-// from nonBooleanType, used for match's input, which Mapbox requires to be
-// a number or string.
-function isDefinitelyBoolean(node: Node): boolean {
-  if (node instanceof BooleanNode) return true;
-  if (node instanceof BinOpNode) {
-    const op = operatorSymbol(node.opToken);
-    return op !== undefined && BOOLEAN_OPERATORS.has(op);
-  }
-  if (node instanceof UnaryOpNode) {
-    if (node.opTok.type === TokenType.KEYWORD && node.opTok.value === "not") return true;
-    if (node.opTok.type === TokenType.PLUS) return isDefinitelyBoolean(node.node);
-  }
-  return false;
+function withArticle(type: DefiniteType): string {
+  return type === "object" ? `an ${type}` : `a ${type}`;
 }
 
 function referencesAnyOf(node: Node, names: ReadonlySet<string>): boolean {
@@ -233,8 +206,6 @@ function referencesAnyOf(node: Node, names: ReadonlySet<string>): boolean {
     );
   }
   if (node instanceof MatchNode) {
-    // Labels are always literal numbers/strings (never expressions), so
-    // only the input and the branch values can reference a variable.
     return (
       referencesAnyOf(node.input, names) ||
       node.cases.some((c) => referencesAnyOf(c.value, names)) ||
@@ -244,7 +215,27 @@ function referencesAnyOf(node: Node, names: ReadonlySet<string>): boolean {
   if (node instanceof CallNode) {
     return node.args.some((arg) => referencesAnyOf(arg, names));
   }
+  if (node instanceof InterpolateNode) {
+    return (
+      referencesAnyOf(node.input, names) ||
+      interpolationTypeOperands(node.interpolationType).some((n) => referencesAnyOf(n, names)) ||
+      node.stops.some((s) => referencesAnyOf(s.value, names))
+    );
+  }
+  if (node instanceof StepNode) {
+    return (
+      referencesAnyOf(node.input, names) ||
+      referencesAnyOf(node.defaultValue, names) ||
+      node.stops.some((s) => referencesAnyOf(s.value, names))
+    );
+  }
   return false;
+}
+
+function interpolationTypeOperands(type: InterpolationType): Node[] {
+  if (type instanceof LinearInterpolationNode) return [];
+  if (type instanceof ExponentialInterpolationNode) return [type.base];
+  return [type.x1, type.y1, type.x2, type.y2];
 }
 
 class SymbolTable {
@@ -281,6 +272,8 @@ export class Compiler {
     else if (node instanceof MatchNode) return this.visitMatchNode(node);
     else if (node instanceof CallNode) return this.visitCallNode(node);
     else if (node instanceof ConstantNode) return this.visitConstantNode(node);
+    else if (node instanceof InterpolateNode) return this.visitInterpolateNode(node);
+    else if (node instanceof StepNode) return this.visitStepNode(node);
     else throw new Error("No visit function for " + node);
   }
 
@@ -383,11 +376,12 @@ export class Compiler {
   }
 
   private visitMatchNode(node: MatchNode): MapboxExpression {
-    if (isDefinitelyBoolean(node.input)) {
+    const inputType = inferType(node.input);
+    if (inputType !== undefined && inputType !== "number" && inputType !== "string") {
       throw new TypeMismatchError(
         node.input.posStart,
         node.input.posEnd,
-        "'match' input must be a number or a string, but this is a boolean",
+        `'match' input must be a number or a string, but this is ${withArticle(inputType)}`,
         this.text,
       );
     }
@@ -460,6 +454,81 @@ export class Compiler {
     return [spec.mapboxName];
   }
 
+  private visitInterpolateNode(node: InterpolateNode): MapboxExpression {
+    this.validateAscendingStops(node.stops);
+
+    const mapboxName =
+      node.variant === "interpolate"
+        ? "interpolate"
+        : node.variant === "interpolateHcl"
+          ? "interpolate-hcl"
+          : "interpolate-lab";
+
+    const parts: MapboxExpression[] = [
+      mapboxName,
+      this.compileInterpolationType(node.interpolationType),
+      this.compile(node.input),
+    ];
+    for (const { input, value } of node.stops) {
+      parts.push(this.compile(input), this.compile(value));
+    }
+    return parts;
+  }
+
+  private compileInterpolationType(type: InterpolationType): MapboxExpression {
+    if (type instanceof LinearInterpolationNode) return ["linear"];
+    if (type instanceof ExponentialInterpolationNode) {
+      return ["exponential", this.compile(type.base)];
+    }
+    if (type instanceof CubicBezierInterpolationNode) {
+      return [
+        "cubic-bezier",
+        this.compile(type.x1),
+        this.compile(type.y1),
+        this.compile(type.x2),
+        this.compile(type.y2),
+      ];
+    }
+    throw new Error(`Compiler.compileInterpolationType: unsupported interpolation type ${type}`);
+  }
+
+  private visitStepNode(node: StepNode): MapboxExpression {
+    this.validateAscendingStops(node.stops);
+
+    const parts: MapboxExpression[] = [
+      "step",
+      this.compile(node.input),
+      this.compile(node.defaultValue),
+    ];
+    for (const { input, value } of node.stops) {
+      parts.push(this.compile(input), this.compile(value));
+    }
+    return parts;
+  }
+
+  private validateAscendingStops(stops: (InterpolateStop | StepStop)[]): void {
+    for (let i = 1; i < stops.length; i++) {
+      const previous = stops[i - 1];
+      const current = stops[i];
+      if (previous === undefined || current === undefined) continue;
+
+      const previousValue = previous.input.tok.value;
+      const currentValue = current.input.tok.value;
+      if (
+        typeof previousValue === "number" &&
+        typeof currentValue === "number" &&
+        currentValue <= previousValue
+      ) {
+        throw new RuntimeError(
+          current.input.posStart,
+          current.input.posEnd,
+          `Stop inputs must be in strictly ascending order, but ${currentValue} does not come after ${previousValue}`,
+          this.text,
+        );
+      }
+    }
+  }
+
   private visitBinOpNode(node: BinOpNode): MapboxExpression {
     const left = this.compile(node.leftNode);
     const right = this.compile(node.rightNode);
@@ -490,6 +559,27 @@ export class Compiler {
       }
     }
 
+    if (NUMERIC_OPERATORS.has(op)) {
+      const leftBadType = nonNumericType(node.leftNode);
+      if (leftBadType !== undefined) {
+        throw new TypeMismatchError(
+          node.leftNode.posStart,
+          node.leftNode.posEnd,
+          `'${op}' requires a numeric operand, but this is ${withArticle(leftBadType)}`,
+          this.text,
+        );
+      }
+      const rightBadType = nonNumericType(node.rightNode);
+      if (rightBadType !== undefined) {
+        throw new TypeMismatchError(
+          node.rightNode.posStart,
+          node.rightNode.posEnd,
+          `'${op}' requires a numeric operand, but this is ${withArticle(rightBadType)}`,
+          this.text,
+        );
+      }
+    }
+
     if (op === "+" || op === "*" || op === "all" || op === "any") {
       const leftArgs = Array.isArray(left) && left[0] === op ? left.slice(1) : [left];
       const rightArgs = Array.isArray(right) && right[0] === op ? right.slice(1) : [right];
@@ -503,6 +593,15 @@ export class Compiler {
     const value = this.compile(node.node);
 
     if (node.opTok.type === TokenType.MINUS) {
+      const badType = nonNumericType(node.node);
+      if (badType !== undefined) {
+        throw new TypeMismatchError(
+          node.node.posStart,
+          node.node.posEnd,
+          `'-' requires a numeric operand, but this is ${withArticle(badType)}`,
+          this.text,
+        );
+      }
       return ["-", value];
     }
 

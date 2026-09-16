@@ -73,13 +73,17 @@ describe("Compiler literals", () => {
       expect(typeof result).toBe("boolean");
     });
 
-    it("does not error when a boolean literal is used in arithmetic", () => {
+    it("rejects a boolean literal used in arithmetic", () => {
       // The video's language treats True/False as 1/0, but Mapbox's boolean
-      // type is its own literal value kind, never a number substitute. This
-      // still has to compile without throwing -- Mapbox itself will reject
-      // ["+", true, 2] at evaluation time, but that's not this stage's job.
-      expect(compileSrc("true + 2")).toEqual(["+", true, 2]);
-      expect(compileSrc("false * 3")).toEqual(["*", false, 3]);
+      // type is its own literal value kind, never a number substitute. See
+      // type-checking.test.ts for the full "arithmetic operands must be
+      // numeric" coverage -- this is just a smoke test that it applies here.
+      expect(() => compileSrc("true + 2")).toThrow(
+        "'+' requires a numeric operand, but this is a boolean",
+      );
+      expect(() => compileSrc("false * 3")).toThrow(
+        "'*' requires a numeric operand, but this is a boolean",
+      );
     });
 
     it("combines with comparisons and boolean operators", () => {
@@ -89,9 +93,11 @@ describe("Compiler literals", () => {
       expect(compileSrc("true == false")).toEqual(["==", true, false]);
     });
 
-    it("combines with get() and unary minus", () => {
+    it("combines with get(), but rejects unary minus on a boolean", () => {
       expect(compileSrc('get("active") and true')).toEqual(["all", ["get", "active"], true]);
-      expect(compileSrc("-true")).toEqual(["-", true]);
+      expect(() => compileSrc("-true")).toThrow(
+        "'-' requires a numeric operand, but this is a boolean",
+      );
     });
   });
 });

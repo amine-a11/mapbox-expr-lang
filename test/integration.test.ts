@@ -215,6 +215,54 @@ describe("Integration: combined multi-feature programs", () => {
     ]);
   });
 
+  it("zoom-dependent building color: step for a discrete palette, interpolate for a smooth height-based radius", () => {
+    const source = `
+      var heightCategory = step get("height")
+        default "low"
+        50  then "mid"
+        200 then "high"
+
+      var radius = interpolate exponential(1.5) camera.zoom
+        5  then 2
+        15 then 20
+
+      match heightCategory
+        "high" then rgb(200, 0, 0)
+        "mid" then rgb(0, 200, 0)
+        else rgb(0, 0, 200)
+    `;
+
+    expect(compileSrc(source)).toEqual([
+      "let",
+      "heightCategory",
+      ["step", ["get", "height"], "low", 50, "mid", 200, "high"],
+      "radius",
+      ["interpolate", ["exponential", 1.5], ["zoom"], 5, 2, 15, 20],
+      [
+        "match",
+        ["var", "heightCategory"],
+        "high",
+        ["rgb", 200, 0, 0],
+        "mid",
+        ["rgb", 0, 200, 0],
+        ["rgb", 0, 0, 200],
+      ],
+    ]);
+  });
+
+  it("a type error inside an interpolate stop's output is still caught with the exact offending token", () => {
+    const source = `
+      interpolate linear camera.zoom
+        0  then 1 + true
+        10 then 2
+    `;
+
+    expect(() => compileSrc(source)).toThrow(TypeMismatchError);
+    expect(() => compileSrc(source)).toThrow(
+      "'+' requires a numeric operand, but this is a boolean",
+    );
+  });
+
   it("circle radius and color: math functions, min/max clamping, and a boolean-returning function feeding an if", () => {
     const source = `
       var density = get("population") / get("area")
