@@ -4,9 +4,12 @@ import {
   GetNode,
   NumberNode,
   UnaryOpNode,
+  VarAccessNode,
+  VarAssignNode,
   type Node,
 } from "../parser/nodes";
 import { TokenType, type Token } from "../lexer/token";
+import { RuntimeError } from "../errors/langError";
 
 export type MapboxExpression = MapboxExpression[] | string | number | boolean | null;
 
@@ -25,10 +28,6 @@ const BINARY_OPERATORS: Partial<Record<TokenType, string>> = {
   [TokenType.GTE]: ">=",
 };
 
-// and/or share TokenType.KEYWORD with every other keyword, so they can't go
-// in BINARY_OPERATORS (a straight TokenType lookup) the same way symbolic
-// operators do -- same reason Parser.matchesOp() needs a (type, value) pair
-// instead of just a type for these.
 function operatorSymbol(token: Token): string | undefined {
   const symbol = BINARY_OPERATORS[token.type];
   if (symbol !== undefined) return symbol;
@@ -37,13 +36,48 @@ function operatorSymbol(token: Token): string | undefined {
   return undefined;
 }
 
+function referencesAnyOf(node: Node, names: ReadonlySet<string>): boolean {
+  if (node instanceof VarAccessNode) {
+    return typeof node.tok.value === "string" && names.has(node.tok.value);
+  }
+  if (node instanceof BinOpNode) {
+    return referencesAnyOf(node.leftNode, names) || referencesAnyOf(node.rightNode, names);
+  }
+  if (node instanceof UnaryOpNode) {
+    return referencesAnyOf(node.node, names);
+  }
+  return false;
+}
+
+class SymbolTable {
+  private readonly declaredNames = new Set<string>();
+
+  has(name: string): boolean {
+    return this.declaredNames.has(name);
+  }
+
+  declare(name: string): void {
+    this.declaredNames.add(name);
+  }
+
+  remove(name: string): void {
+    this.declaredNames.delete(name);
+  }
+}
+
 export class Compiler {
+  private readonly symbolTable = new SymbolTable();
+
+  constructor(public text: string) {}
+
   compile(node: Node): MapboxExpression {
     if (node instanceof NumberNode) return this.visitNumberNode(node);
     else if (node instanceof BooleanNode) return this.visitBooleanNode(node);
     else if (node instanceof BinOpNode) return this.visitBinOpNode(node);
     else if (node instanceof UnaryOpNode) return this.visitUnaryOpNode(node);
     else if (node instanceof GetNode) return this.visitGetNode(node);
+    else if (node instanceof VarAssignNode) return this.visitVarAssignNode(node);
+    else if (node instanceof VarAccessNode) return this.visitVarAccessNode(node);
     else throw new Error("No visit function for " + node);
   }
 
@@ -62,14 +96,62 @@ export class Compiler {
   }
 
   private visitBooleanNode(node: BooleanNode): MapboxExpression {
-    // Mapbox's boolean type is its own literal value kind (true/false in
-    // the JSON), never a number substitute -- confirmed from the style
-    // spec's Types reference. So this compiles straight to a real boolean,
-    // not 1/0.
     if (node.tok.value !== "true" && node.tok.value !== "false") {
       throw new Error(`BooleanNode token has an unexpected value: ${node.tok}`);
     }
     return node.tok.value === "true";
+  }
+
+  private visitVarAssignNode(node: VarAssignNode): MapboxExpression {
+    const batch: { name: string; valueNode: Node }[] = [];
+    const namesInBatch = new Set<string>();
+    let current: Node = node;
+
+    while (current instanceof VarAssignNode) {
+      const name = current.varNameTok.value;
+      if (typeof name !== "string") {
+        throw new Error(`VarAssignNode token has a non-string value: ${current.varNameTok}`);
+      }
+
+      if (namesInBatch.has(name) || referencesAnyOf(current.valueNode, namesInBatch)) {
+        break;
+      }
+
+      batch.push({ name, valueNode: current.valueNode });
+      namesInBatch.add(name);
+      current = current.bodyNode;
+    }
+
+    const bindings: MapboxExpression[] = batch.flatMap(({ name, valueNode }) => [
+      name,
+      this.compile(valueNode),
+    ]);
+
+    for (const { name } of batch) this.symbolTable.declare(name);
+    try {
+      const body = this.compile(current);
+      return ["let", ...bindings, body];
+    } finally {
+      for (const { name } of batch) this.symbolTable.remove(name);
+    }
+  }
+
+  private visitVarAccessNode(node: VarAccessNode): MapboxExpression {
+    const name = node.tok.value;
+    if (typeof name !== "string") {
+      throw new Error(`VarAccessNode token has a non-string value: ${node.tok}`);
+    }
+
+    if (!this.symbolTable.has(name)) {
+      throw new RuntimeError(
+        node.posStart,
+        node.posEnd,
+        `Variable "${name}" is not defined`,
+        this.text,
+      );
+    }
+
+    return ["var", name];
   }
 
   private visitBinOpNode(node: BinOpNode): MapboxExpression {
@@ -82,10 +164,6 @@ export class Compiler {
     }
 
     if (op === "+" || op === "*" || op === "all" || op === "any") {
-      // + and * (and and/or) are variadic in Mapbox, so a chain of the
-      // same operator should compile to one flat array, not nested pairs --
-      // this is just correctly representing what the operator already is,
-      // not an optimization.
       const leftArgs = Array.isArray(left) && left[0] === op ? left.slice(1) : [left];
       const rightArgs = Array.isArray(right) && right[0] === op ? right.slice(1) : [right];
       return [op, ...leftArgs, ...rightArgs];
@@ -98,8 +176,6 @@ export class Compiler {
     const value = this.compile(node.node);
 
     if (node.opTok.type === TokenType.MINUS) {
-      // Not ["*", -1, value] -- Mapbox's own "-" operator negates when
-      // given exactly one argument, so that's the spec-correct form.
       return ["-", value];
     }
 
@@ -107,7 +183,6 @@ export class Compiler {
       return ["!", value];
     }
 
-    // Unary plus is a no-op.
     return value;
   }
 }

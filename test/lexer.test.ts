@@ -93,6 +93,42 @@ describe("Lexer", () => {
     expect(tokens[0]?.posEnd).toMatchObject({ idx: 2, ln: 0, col: 2 });
   });
 
+  describe("newlines", () => {
+    it("tokenizes a bare LF as NEWLINE", () => {
+      expect(simplify(tokenize("1\n2"))).toEqual([
+        [TokenType.INT, 1],
+        [TokenType.NEWLINE, undefined],
+        [TokenType.INT, 2],
+        EOF,
+      ]);
+    });
+
+    it("tokenizes a CRLF as exactly one NEWLINE, not two tokens", () => {
+      expect(simplify(tokenize("1\r\n2"))).toEqual([
+        [TokenType.INT, 1],
+        [TokenType.NEWLINE, undefined],
+        [TokenType.INT, 2],
+        EOF,
+      ]);
+    });
+
+    it("produces one NEWLINE token per line break, even for consecutive blank lines", () => {
+      expect(simplify(tokenize("1\n\n\n2"))).toEqual([
+        [TokenType.INT, 1],
+        [TokenType.NEWLINE, undefined],
+        [TokenType.NEWLINE, undefined],
+        [TokenType.NEWLINE, undefined],
+        [TokenType.INT, 2],
+        EOF,
+      ]);
+    });
+
+    it("tracks line and column across a newline", () => {
+      const tokens = tokenize("1\n2");
+      expect(tokens[2]?.posStart).toMatchObject({ idx: 2, ln: 1, col: 0 });
+    });
+  });
+
   describe("identifiers and keywords", () => {
     it("tokenizes a plain identifier", () => {
       expect(simplify(tokenize("population"))).toEqual([[TokenType.IDENTIFIER, "population"], EOF]);
@@ -100,6 +136,20 @@ describe("Lexer", () => {
 
     it("recognizes 'get' as a keyword, not a plain identifier", () => {
       expect(simplify(tokenize("get"))).toEqual([[TokenType.KEYWORD, "get"], EOF]);
+    });
+
+    it("recognizes 'var' as a keyword, not a plain identifier", () => {
+      expect(simplify(tokenize("var"))).toEqual([[TokenType.KEYWORD, "var"], EOF]);
+    });
+
+    it("tokenizes a full variable assignment", () => {
+      expect(simplify(tokenize("var a = 5"))).toEqual([
+        [TokenType.KEYWORD, "var"],
+        [TokenType.IDENTIFIER, "a"],
+        [TokenType.EQ, undefined],
+        [TokenType.INT, 5],
+        EOF,
+      ]);
     });
 
     it("allows digits and underscores after the first letter", () => {
@@ -186,8 +236,9 @@ describe("Lexer", () => {
       ]);
     });
 
-    it("throws on a bare '=' -- there's no assignment in this language", () => {
-      expect(() => tokenize("=")).toThrow(ExpectedCharError);
+    it("tokenizes a bare '=' as EQ, distinct from '==' (EE)", () => {
+      expect(simplify(tokenize("="))).toEqual([[TokenType.EQ, undefined], EOF]);
+      expect(simplify(tokenize("=="))).toEqual([[TokenType.EE, undefined], EOF]);
     });
 
     it("recognizes 'and', 'or', and 'not' as keywords, not plain identifiers", () => {

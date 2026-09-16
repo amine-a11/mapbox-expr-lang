@@ -1,4 +1,8 @@
 ```ebnf
+statement  ::= NEWLINE* stmt (NEWLINE+ stmt)* NEWLINE*
+
+stmt       ::= KEYWORD:VAR IDENTIFIER EQ expr
+             | expr
 
 expr       ::= comp-expr ( ( KEYWORD:and | KEYWORD:or ) comp-expr)*
 
@@ -16,6 +20,7 @@ power      ::= atom ( POW factor )*
 
 atom       ::= INT
              | FLOAT
+             | IDENTIFIER
              | KEYWORD:true
              | KEYWORD:false
              | LPAREN expr RPAREN

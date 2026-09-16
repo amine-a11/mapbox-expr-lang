@@ -22,6 +22,7 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsx src/repl.ts",
+    "run-file": "tsx src/runFile.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

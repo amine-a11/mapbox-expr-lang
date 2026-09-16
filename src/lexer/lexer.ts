@@ -20,8 +20,12 @@ export class Lexer {
   makeToken(): Token[] {
     const tokens: Token[] = [];
     while (this.currentChar !== undefined) {
-      if (this.currentChar === " " || this.currentChar === "\t") {
+      if (this.currentChar === " " || this.currentChar === "\t" || this.currentChar === "\r") {
         this.advance();
+      } else if (this.currentChar === "\n") {
+        const posStart = this.pos.copy();
+        this.advance();
+        tokens.push(new Token(TokenType.NEWLINE, undefined, posStart, this.pos));
       } else if (DIGITS.includes(this.currentChar)) {
         tokens.push(this.makeNumber());
       } else if (LETTERS.includes(this.currentChar)) {
@@ -98,7 +102,7 @@ export class Lexer {
       this.advance();
       return new Token(TokenType.EE, undefined, posStart, this.pos);
     }
-    throw new ExpectedCharError(posStart, this.pos, "Expected '=' after '='", this.text);
+    return new Token(TokenType.EQ, undefined, posStart, this.pos);
   }
 
   makeGreaterThan(): Token {

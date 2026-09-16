@@ -1,7 +1,16 @@
 import { TokenType, type Token } from "../lexer/token";
 import { InvalidSyntaxError } from "../errors/langError";
 import { Position } from "../errors/position";
-import { BinOpNode, BooleanNode, GetNode, NumberNode, UnaryOpNode, type Node } from "./nodes";
+import {
+  BinOpNode,
+  BooleanNode,
+  GetNode,
+  NumberNode,
+  UnaryOpNode,
+  VarAccessNode,
+  VarAssignNode,
+  type Node,
+} from "./nodes";
 
 export class Parser {
   private tokIdx: number;
@@ -16,7 +25,8 @@ export class Parser {
   }
 
   parse(): Node {
-    const node = this.expr();
+    this.skipNewlines();
+    const node = this.statementSeq();
 
     if (this.currentToken !== undefined && this.currentToken.type !== TokenType.EOF) {
       throw new InvalidSyntaxError(
@@ -28,6 +38,47 @@ export class Parser {
     }
 
     return node;
+  }
+
+  private statementSeq(): Node {
+    const first = this.statement();
+
+    if (!this.atNewline()) {
+      return first;
+    }
+
+    if (!this.moreStatementsFollow()) {
+      this.skipNewlines();
+      return first;
+    }
+
+    if (!(first instanceof VarAssignNode)) {
+      throw new InvalidSyntaxError(
+        first.posStart,
+        first.posEnd,
+        "This expression's value is unused -- only a 'var' assignment can be followed by more lines; put the final value on the last line",
+        this.text,
+      );
+    }
+
+    this.skipNewlines();
+    first.bodyNode = this.statementSeq();
+    return first;
+  }
+
+  private moreStatementsFollow(): boolean {
+    let peekIdx = this.tokIdx;
+    while (this.tokens[peekIdx]?.type === TokenType.NEWLINE) peekIdx++;
+    const next = this.tokens[peekIdx];
+    return next !== undefined && next.type !== TokenType.EOF;
+  }
+
+  private atNewline(): boolean {
+    return this.currentToken !== undefined && this.currentToken.type === TokenType.NEWLINE;
+  }
+
+  private skipNewlines(): void {
+    while (this.atNewline()) this.advance();
   }
 
   private advance(): Token | undefined {
@@ -60,11 +111,14 @@ export class Parser {
       const propertyTok = this.expect(TokenType.STRING, "Expected a string");
       const closeParen = this.expect(TokenType.RPAREN, "Expected ')'");
       return new GetNode(propertyTok, posStart, closeParen.posEnd);
+    } else if (tok !== undefined && tok.type === TokenType.IDENTIFIER) {
+      this.advance();
+      return new VarAccessNode(tok);
     }
 
     const [posStart, posEnd] = this.errorRange();
     const isEnd = tok === undefined || tok.type === TokenType.EOF;
-    const expected = "int, float, '+', '-', '(', 'get(...)', 'true' or 'false'";
+    const expected = "int, float, '+', '-', '(', 'get(...)', 'true', 'false', or an identifier";
     throw new InvalidSyntaxError(
       posStart,
       posEnd,
@@ -121,6 +175,19 @@ export class Parser {
       [TokenType.PLUS, TokenType.MINUS],
       () => this.term(),
     );
+  }
+
+  private statement(): Node {
+    const tok = this.currentToken;
+    if (tok !== undefined && tok.type === TokenType.KEYWORD && tok.value === "var") {
+      this.advance();
+      const nameTok = this.expect(TokenType.IDENTIFIER, "Expected an identifier");
+      this.expect(TokenType.EQ, "Expected '='");
+      const valueNode = this.expr();
+      return new VarAssignNode(nameTok, valueNode, new VarAccessNode(nameTok));
+    }
+
+    return this.expr();
   }
 
   private expr(): Node {
