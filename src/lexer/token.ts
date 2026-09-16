@@ -14,6 +14,7 @@ export const KEYWORDS = [
   "elif",
   "else",
   "then",
+  "match",
   "true",
   "false",
 ];
@@ -38,6 +39,7 @@ export enum TokenType {
   GTE, // >=
   LPAREN,
   RPAREN,
+  COMMA,
   NEWLINE,
   EOF,
 }

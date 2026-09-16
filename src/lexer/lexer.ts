@@ -64,6 +64,10 @@ export class Lexer {
         const posStart = this.pos.copy();
         this.advance();
         tokens.push(new Token(TokenType.RPAREN, undefined, posStart, this.pos));
+      } else if (this.currentChar === ",") {
+        const posStart = this.pos.copy();
+        this.advance();
+        tokens.push(new Token(TokenType.COMMA, undefined, posStart, this.pos));
       } else if (this.currentChar === "!") {
         tokens.push(this.makeNotEquals());
       } else if (this.currentChar === "=") {

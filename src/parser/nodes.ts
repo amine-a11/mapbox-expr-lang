@@ -11,7 +11,8 @@ export type Node =
   | BooleanNode
   | VarAccessNode
   | VarAssignNode
-  | IfNode;
+  | IfNode
+  | MatchNode;
 
 export interface Positioned {
   posStart: Position;
@@ -180,6 +181,39 @@ export class IfNode implements Positioned {
   toString(): string {
     const cases = this.cases.map((c) => `${c.condition} -> ${c.value}`).join(", ");
     return `(IF ${cases} ELSE ${this.elseCase})`;
+  }
+
+  [inspect.custom](): string {
+    return this.toString();
+  }
+}
+
+export type MatchLabel = NumberNode | StringNode;
+
+export interface MatchCase {
+  labels: MatchLabel[];
+  value: Node;
+}
+
+export class MatchNode implements Positioned {
+  posStart: Position;
+  posEnd: Position;
+
+  constructor(
+    public input: Node,
+    public cases: MatchCase[],
+    public elseCase: Node,
+    posStart: Position,
+  ) {
+    this.posStart = posStart;
+    this.posEnd = elseCase.posEnd;
+  }
+
+  toString(): string {
+    const cases = this.cases
+      .map((c) => `${c.labels.map((label) => `${label}`).join(", ")} -> ${c.value}`)
+      .join(", ");
+    return `(MATCH ${this.input} ${cases} ELSE ${this.elseCase})`;
   }
 
   [inspect.custom](): string {

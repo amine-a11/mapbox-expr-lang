@@ -27,9 +27,18 @@ atom       ::= INT
              | LPAREN expr RPAREN
              | KEYWORD:get LPAREN STRING RPAREN
              | if-expr
+             | match-expr
 
 if-expr    ::= KEYWORD:if expr KEYWORD:then NEWLINE* expr
                ( NEWLINE* KEYWORD:elif expr KEYWORD:then NEWLINE* expr )*
                NEWLINE* KEYWORD:else NEWLINE* expr
+
+match-expr ::= KEYWORD:match expr NEWLINE*
+               ( match-labels KEYWORD:then NEWLINE* expr NEWLINE* )+
+               KEYWORD:else NEWLINE* expr
+
+match-labels ::= match-label ( COMMA match-label )*
+
+match-label  ::= INT | FLOAT | STRING
 
 ```

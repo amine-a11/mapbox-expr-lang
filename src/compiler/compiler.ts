@@ -3,11 +3,13 @@ import {
   BooleanNode,
   GetNode,
   IfNode,
+  MatchNode,
   NumberNode,
   StringNode,
   UnaryOpNode,
   VarAccessNode,
   VarAssignNode,
+  type MatchLabel,
   type Node,
 } from "../parser/nodes";
 import { TokenType, type Token } from "../lexer/token";
@@ -56,6 +58,24 @@ function nonBooleanType(node: Node): "number" | "string" | undefined {
   return undefined;
 }
 
+const BOOLEAN_OPERATORS = new Set(["==", "!=", "<", "<=", ">", ">=", "all", "any"]);
+
+// Returns true when a node is provably boolean-typed -- the opposite check
+// from nonBooleanType, used for match's input, which Mapbox requires to be
+// a number or string.
+function isDefinitelyBoolean(node: Node): boolean {
+  if (node instanceof BooleanNode) return true;
+  if (node instanceof BinOpNode) {
+    const op = operatorSymbol(node.opToken);
+    return op !== undefined && BOOLEAN_OPERATORS.has(op);
+  }
+  if (node instanceof UnaryOpNode) {
+    if (node.opTok.type === TokenType.KEYWORD && node.opTok.value === "not") return true;
+    if (node.opTok.type === TokenType.PLUS) return isDefinitelyBoolean(node.node);
+  }
+  return false;
+}
+
 function referencesAnyOf(node: Node, names: ReadonlySet<string>): boolean {
   if (node instanceof VarAccessNode) {
     return typeof node.tok.value === "string" && names.has(node.tok.value);
@@ -71,6 +91,15 @@ function referencesAnyOf(node: Node, names: ReadonlySet<string>): boolean {
       node.cases.some(
         (c) => referencesAnyOf(c.condition, names) || referencesAnyOf(c.value, names),
       ) || referencesAnyOf(node.elseCase, names)
+    );
+  }
+  if (node instanceof MatchNode) {
+    // Labels are always literal numbers/strings (never expressions), so
+    // only the input and the branch values can reference a variable.
+    return (
+      referencesAnyOf(node.input, names) ||
+      node.cases.some((c) => referencesAnyOf(c.value, names)) ||
+      referencesAnyOf(node.elseCase, names)
     );
   }
   return false;
@@ -107,6 +136,7 @@ export class Compiler {
     else if (node instanceof VarAssignNode) return this.visitVarAssignNode(node);
     else if (node instanceof VarAccessNode) return this.visitVarAccessNode(node);
     else if (node instanceof IfNode) return this.visitIfNode(node);
+    else if (node instanceof MatchNode) return this.visitMatchNode(node);
     else throw new Error("No visit function for " + node);
   }
 
@@ -206,6 +236,33 @@ export class Compiler {
     }
     parts.push(this.compile(node.elseCase));
     return ["case", ...parts];
+  }
+
+  private visitMatchNode(node: MatchNode): MapboxExpression {
+    if (isDefinitelyBoolean(node.input)) {
+      throw new TypeMismatchError(
+        node.input.posStart,
+        node.input.posEnd,
+        "'match' input must be a number or a string, but this is a boolean",
+        this.text,
+      );
+    }
+
+    const parts: MapboxExpression[] = [this.compile(node.input)];
+    for (const { labels, value } of node.cases) {
+      parts.push(this.compileMatchLabels(labels), this.compile(value));
+    }
+    parts.push(this.compile(node.elseCase));
+    return ["match", ...parts];
+  }
+
+  private compileMatchLabels(labels: MatchLabel[]): MapboxExpression {
+    const compiled = labels.map((label) => this.compile(label));
+    const [first, ...rest] = compiled;
+    if (first === undefined) {
+      throw new Error("MatchNode has an empty label list");
+    }
+    return rest.length === 0 ? first : [first, ...rest];
   }
 
   private visitBinOpNode(node: BinOpNode): MapboxExpression {

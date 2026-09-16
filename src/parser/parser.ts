@@ -6,12 +6,15 @@ import {
   BooleanNode,
   GetNode,
   IfNode,
+  MatchNode,
   NumberNode,
   StringNode,
   UnaryOpNode,
   VarAccessNode,
   VarAssignNode,
   type IfCase,
+  type MatchCase,
+  type MatchLabel,
   type Node,
 } from "./nodes";
 
@@ -141,12 +144,14 @@ export class Parser {
       return new VarAccessNode(tok);
     } else if (tok !== undefined && tok.type === TokenType.KEYWORD && tok.value === "if") {
       return this.ifExpr();
+    } else if (tok !== undefined && tok.type === TokenType.KEYWORD && tok.value === "match") {
+      return this.matchExpr();
     }
 
     const [posStart, posEnd] = this.errorRange();
     const isEnd = tok === undefined || tok.type === TokenType.EOF;
     const expected =
-      "int, float, string, '+', '-', '(', 'get(...)', 'true', 'false', an identifier, or 'if'";
+      "int, float, string, '+', '-', '(', 'get(...)', 'true', 'false', an identifier, 'if', or 'match'";
     throw new InvalidSyntaxError(
       posStart,
       posEnd,
@@ -232,6 +237,69 @@ export class Parser {
     const elseCase = this.expr();
 
     return new IfNode(cases, elseCase, ifTok.posStart);
+  }
+
+  private matchExpr(): Node {
+    const matchTok = this.expectKeyword("match", "Expected 'match'");
+    const input = this.expr();
+    this.skipNewlines();
+
+    const cases: MatchCase[] = [];
+
+    const firstLabels = this.matchLabelList(false);
+    this.expectKeyword("then", "Expected 'then'");
+    this.skipNewlines();
+    const firstValue = this.expr();
+    cases.push({ labels: firstLabels, value: firstValue });
+    this.skipNewlines();
+
+    while (!this.isKeyword("else")) {
+      const labels = this.matchLabelList(true);
+      this.expectKeyword("then", "Expected 'then'");
+      this.skipNewlines();
+      const value = this.expr();
+      cases.push({ labels, value });
+      this.skipNewlines();
+    }
+
+    this.expectKeyword("else", "Expected 'else'");
+    this.skipNewlines();
+    const elseCase = this.expr();
+
+    return new MatchNode(input, cases, elseCase, matchTok.posStart);
+  }
+
+  private matchLabelList(elseIsValidHere: boolean): MatchLabel[] {
+    const labels: MatchLabel[] = [this.matchLabel(elseIsValidHere)];
+    while (this.currentToken !== undefined && this.currentToken.type === TokenType.COMMA) {
+      this.advance();
+      labels.push(this.matchLabel(false));
+    }
+    return labels;
+  }
+
+  private matchLabel(elseIsValidHere: boolean): MatchLabel {
+    const tok = this.currentToken;
+    if (tok !== undefined && (tok.type === TokenType.INT || tok.type === TokenType.FLOAT)) {
+      this.advance();
+      return new NumberNode(tok);
+    }
+    if (tok !== undefined && tok.type === TokenType.STRING) {
+      this.advance();
+      return new StringNode(tok);
+    }
+
+    const [posStart, posEnd] = this.errorRange();
+    const isEnd = tok === undefined || tok.type === TokenType.EOF;
+    const expected = elseIsValidHere ? "a number, a string, or 'else'" : "a number or a string";
+    throw new InvalidSyntaxError(
+      posStart,
+      posEnd,
+      isEnd
+        ? `Unexpected end of input, expected ${expected}`
+        : `Unexpected token: ${tok}, expected ${expected}`,
+      this.text,
+    );
   }
 
   private statement(): Node {
