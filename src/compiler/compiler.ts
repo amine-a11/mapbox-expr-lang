@@ -2,6 +2,7 @@ import {
   BinOpNode,
   BooleanNode,
   GetNode,
+  IfNode,
   NumberNode,
   UnaryOpNode,
   VarAccessNode,
@@ -9,7 +10,7 @@ import {
   type Node,
 } from "../parser/nodes";
 import { TokenType, type Token } from "../lexer/token";
-import { RuntimeError } from "../errors/langError";
+import { RuntimeError, TypeMismatchError } from "../errors/langError";
 
 export type MapboxExpression = MapboxExpression[] | string | number | boolean | null;
 
@@ -36,6 +37,21 @@ function operatorSymbol(token: Token): string | undefined {
   return undefined;
 }
 
+const NUMERIC_OPERATORS = new Set(["+", "-", "*", "/", "%", "^"]);
+
+function cannotBeBoolean(node: Node): boolean {
+  if (node instanceof NumberNode) return true;
+  if (node instanceof BinOpNode) {
+    const op = operatorSymbol(node.opToken);
+    return op !== undefined && NUMERIC_OPERATORS.has(op);
+  }
+  if (node instanceof UnaryOpNode) {
+    if (node.opTok.type === TokenType.MINUS) return true;
+    if (node.opTok.type === TokenType.PLUS) return cannotBeBoolean(node.node);
+  }
+  return false;
+}
+
 function referencesAnyOf(node: Node, names: ReadonlySet<string>): boolean {
   if (node instanceof VarAccessNode) {
     return typeof node.tok.value === "string" && names.has(node.tok.value);
@@ -45,6 +61,13 @@ function referencesAnyOf(node: Node, names: ReadonlySet<string>): boolean {
   }
   if (node instanceof UnaryOpNode) {
     return referencesAnyOf(node.node, names);
+  }
+  if (node instanceof IfNode) {
+    return (
+      node.cases.some(
+        (c) => referencesAnyOf(c.condition, names) || referencesAnyOf(c.value, names),
+      ) || referencesAnyOf(node.elseCase, names)
+    );
   }
   return false;
 }
@@ -78,6 +101,7 @@ export class Compiler {
     else if (node instanceof GetNode) return this.visitGetNode(node);
     else if (node instanceof VarAssignNode) return this.visitVarAssignNode(node);
     else if (node instanceof VarAccessNode) return this.visitVarAccessNode(node);
+    else if (node instanceof IfNode) return this.visitIfNode(node);
     else throw new Error("No visit function for " + node);
   }
 
@@ -154,6 +178,23 @@ export class Compiler {
     return ["var", name];
   }
 
+  private visitIfNode(node: IfNode): MapboxExpression {
+    const parts: MapboxExpression[] = [];
+    for (const { condition, value } of node.cases) {
+      if (cannotBeBoolean(condition)) {
+        throw new TypeMismatchError(
+          condition.posStart,
+          condition.posEnd,
+          "'if'/'elif' condition must be a boolean, but this is a number",
+          this.text,
+        );
+      }
+      parts.push(this.compile(condition), this.compile(value));
+    }
+    parts.push(this.compile(node.elseCase));
+    return ["case", ...parts];
+  }
+
   private visitBinOpNode(node: BinOpNode): MapboxExpression {
     const left = this.compile(node.leftNode);
     const right = this.compile(node.rightNode);
@@ -161,6 +202,25 @@ export class Compiler {
     const op = operatorSymbol(node.opToken);
     if (op === undefined) {
       throw new Error(`Compiler.visitBinOpNode: unsupported operator ${node.opToken}`);
+    }
+
+    if (op === "all" || op === "any") {
+      if (cannotBeBoolean(node.leftNode)) {
+        throw new TypeMismatchError(
+          node.leftNode.posStart,
+          node.leftNode.posEnd,
+          `'${node.opToken.value}' requires a boolean operand, but this is a number`,
+          this.text,
+        );
+      }
+      if (cannotBeBoolean(node.rightNode)) {
+        throw new TypeMismatchError(
+          node.rightNode.posStart,
+          node.rightNode.posEnd,
+          `'${node.opToken.value}' requires a boolean operand, but this is a number`,
+          this.text,
+        );
+      }
     }
 
     if (op === "+" || op === "*" || op === "all" || op === "any") {
@@ -180,6 +240,14 @@ export class Compiler {
     }
 
     if (node.opTok.type === TokenType.KEYWORD && node.opTok.value === "not") {
+      if (cannotBeBoolean(node.node)) {
+        throw new TypeMismatchError(
+          node.node.posStart,
+          node.node.posEnd,
+          "'not' requires a boolean operand, but this is a number",
+          this.text,
+        );
+      }
       return ["!", value];
     }
 

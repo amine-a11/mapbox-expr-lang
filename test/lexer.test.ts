@@ -155,6 +155,29 @@ describe("Lexer", () => {
     it("allows digits and underscores after the first letter", () => {
       expect(simplify(tokenize("road_type2"))).toEqual([[TokenType.IDENTIFIER, "road_type2"], EOF]);
     });
+
+    it.each(["if", "then", "elif", "else"])(
+      "recognizes '%s' as a keyword, not a plain identifier",
+      (word) => {
+        expect(simplify(tokenize(word))).toEqual([[TokenType.KEYWORD, word], EOF]);
+      },
+    );
+
+    it("tokenizes a full if/then/elif/else expression", () => {
+      expect(simplify(tokenize("if a then 1 elif b then 2 else 3"))).toEqual([
+        [TokenType.KEYWORD, "if"],
+        [TokenType.IDENTIFIER, "a"],
+        [TokenType.KEYWORD, "then"],
+        [TokenType.INT, 1],
+        [TokenType.KEYWORD, "elif"],
+        [TokenType.IDENTIFIER, "b"],
+        [TokenType.KEYWORD, "then"],
+        [TokenType.INT, 2],
+        [TokenType.KEYWORD, "else"],
+        [TokenType.INT, 3],
+        EOF,
+      ]);
+    });
   });
 
   describe("string literals", () => {

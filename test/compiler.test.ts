@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Lexer } from "../src/lexer/lexer";
 import { Parser } from "../src/parser/parser";
 import { Compiler, type MapboxExpression } from "../src/compiler/compiler";
-import { RuntimeError } from "../src/errors/langError";
+import { RuntimeError, TypeMismatchError } from "../src/errors/langError";
 
 function compileSrc(source: string): MapboxExpression {
   const tokens = new Lexer(source).makeToken();
@@ -254,38 +254,97 @@ describe("Compiler", () => {
 
   describe("boolean operators (and/or/not)", () => {
     it("compiles 'and' to Mapbox's variadic 'all'", () => {
-      expect(compileSrc("1 and 2")).toEqual(["all", 1, 2]);
+      expect(compileSrc("true and false")).toEqual(["all", true, false]);
     });
 
     it("compiles 'or' to Mapbox's variadic 'any'", () => {
-      expect(compileSrc("1 or 2")).toEqual(["any", 1, 2]);
+      expect(compileSrc("true or false")).toEqual(["any", true, false]);
     });
 
     it("compiles 'not' to Mapbox's single-argument '!'", () => {
-      expect(compileSrc("not 1")).toEqual(["!", 1]);
+      expect(compileSrc("not true")).toEqual(["!", true]);
     });
 
     it("chains multiple 'not' without collapsing them", () => {
-      expect(compileSrc("not not 1")).toEqual(["!", ["!", 1]]);
+      expect(compileSrc("not not true")).toEqual(["!", ["!", true]]);
     });
 
     it("flattens a chain of 'and' into one variadic array", () => {
-      expect(compileSrc("1 and 2 and 3")).toEqual(["all", 1, 2, 3]);
+      expect(compileSrc("true and false and true")).toEqual(["all", true, false, true]);
     });
 
     it("flattens a chain of 'or' into one variadic array", () => {
-      expect(compileSrc("1 or 2 or 3")).toEqual(["any", 1, 2, 3]);
+      expect(compileSrc("true or false or true")).toEqual(["any", true, false, true]);
     });
 
     it("does not cross-flatten 'and' into 'or' or vice versa", () => {
-      // "and"/"or" are equal precedence in this grammar (left-associative),
-      // so this parses as (1 and 2) or 3 -- the "all" group must stay
-      // intact as a single argument to "any", not merge into it.
-      expect(compileSrc("1 and 2 or 3")).toEqual(["any", ["all", 1, 2], 3]);
+      expect(compileSrc("true and false or true")).toEqual(["any", ["all", true, false], true]);
     });
 
     it("combines comparisons and boolean logic across precedence levels", () => {
       expect(compileSrc("1 == 2 and 3 < 4")).toEqual(["all", ["==", 1, 2], ["<", 3, 4]]);
+    });
+  });
+
+  describe("boolean type checking for and/or/not/if", () => {
+    it("rejects a number operand to 'and'", () => {
+      expect(() => compileSrc("1 and 2")).toThrow(TypeMismatchError);
+      expect(() => compileSrc("1 and 2")).toThrow(
+        "'and' requires a boolean operand, but this is a number",
+      );
+    });
+
+    it("rejects a number operand to 'or'", () => {
+      expect(() => compileSrc("1 or true")).toThrow(
+        "'or' requires a boolean operand, but this is a number",
+      );
+    });
+
+    it("rejects a number operand to 'not'", () => {
+      expect(() => compileSrc("not 1")).toThrow(
+        "'not' requires a boolean operand, but this is a number",
+      );
+    });
+
+    it("rejects an arithmetic expression, not just a literal number", () => {
+      expect(() => compileSrc("(1 + 2) and true")).toThrow(
+        "'and' requires a boolean operand, but this is a number",
+      );
+      expect(() => compileSrc("not (3 * 4)")).toThrow(
+        "'not' requires a boolean operand, but this is a number",
+      );
+    });
+
+    it("rejects a number condition in an if/elif", () => {
+      expect(() => compileSrc("if 1 then 1 else 2")).toThrow(
+        "'if'/'elif' condition must be a boolean, but this is a number",
+      );
+      expect(() => compileSrc("if 1 > 0 then 1 elif 5 then 2 else 3")).toThrow(
+        "'if'/'elif' condition must be a boolean, but this is a number",
+      );
+    });
+
+    it("allows comparisons, booleans, and nested and/or/not as operands", () => {
+      expect(() => compileSrc("(1 > 2) and (3 < 4)")).not.toThrow();
+      expect(() => compileSrc("true and false")).not.toThrow();
+      expect(() => compileSrc("not (1 > 2)")).not.toThrow();
+    });
+
+    it("allows get(), variables, and if-results, since their type can't be known statically", () => {
+      expect(() => compileSrc('get("active") and true')).not.toThrow();
+      expect(() => compileSrc("var isFast = 1 > 0\nisFast and true")).not.toThrow();
+      expect(() => compileSrc("(if 1 > 0 then true else false) and true")).not.toThrow();
+    });
+
+    it("points the error at the offending operand, not the whole expression", () => {
+      try {
+        compileSrc("true and 5");
+        throw new Error("expected compileSrc() to throw, but it didn't");
+      } catch (error) {
+        if (!(error instanceof TypeMismatchError)) throw error;
+        expect(error.posStart).toMatchObject({ idx: 9, ln: 0, col: 9 });
+        expect(error.posEnd).toMatchObject({ idx: 10, ln: 0, col: 10 });
+      }
     });
   });
 
@@ -473,6 +532,92 @@ describe("Compiler", () => {
       expect(() => compileSrc("var a = 1\nvar b = 2\nb\na")).toThrow(
         "This expression's value is unused",
       );
+    });
+  });
+
+  describe("if expressions", () => {
+    it("compiles a single if/then/else to a 'case' with a fallback", () => {
+      expect(compileSrc("if 1 > 0 then 1 else 2")).toEqual(["case", [">", 1, 0], 1, 2]);
+    });
+
+    it("compiles if/elif/then/else to a 'case' with multiple condition/output pairs", () => {
+      expect(compileSrc("if 1 > 5 then 1 elif 1 > 0 then 2 else 3")).toEqual([
+        "case",
+        [">", 1, 5],
+        1,
+        [">", 1, 0],
+        2,
+        3,
+      ]);
+    });
+
+    it("compiles several elif branches to one flat 'case', not nested cases", () => {
+      expect(compileSrc("if 1 > 9 then 1 elif 1 > 5 then 2 elif 1 > 0 then 3 else 4")).toEqual([
+        "case",
+        [">", 1, 9],
+        1,
+        [">", 1, 5],
+        2,
+        [">", 1, 0],
+        3,
+        4,
+      ]);
+    });
+
+    it("combines with get(), variables, and boolean operators in conditions and branches", () => {
+      expect(compileSrc('if get("speed") > 100 then true else false')).toEqual([
+        "case",
+        [">", ["get", "speed"], 100],
+        true,
+        false,
+      ]);
+    });
+
+    it("compiles as the value of a variable assignment", () => {
+      expect(compileSrc("var x = if 1 > 0 then 1 else 2\nx + 1")).toEqual([
+        "let",
+        "x",
+        ["case", [">", 1, 0], 1, 2],
+        ["+", ["var", "x"], 1],
+      ]);
+    });
+
+    it("nests correctly when one branch is itself an if expression", () => {
+      expect(compileSrc("if 1 > 0 then (if 2 > 0 then 1 else 2) else 3")).toEqual([
+        "case",
+        [">", 1, 0],
+        ["case", [">", 2, 0], 1, 2],
+        3,
+      ]);
+    });
+
+    it("does not flatten a variable whose if-condition depends on an earlier variable", () => {
+      expect(compileSrc("var a = 5\nvar b = if a > 0 then 1 else 2\na + b")).toEqual([
+        "let",
+        "a",
+        5,
+        ["let", "b", ["case", [">", ["var", "a"], 0], 1, 2], ["+", ["var", "a"], ["var", "b"]]],
+      ]);
+    });
+
+    it("does not flatten a variable whose if-branch value depends on an earlier variable", () => {
+      expect(compileSrc("var a = 5\nvar b = if true then a else 0\nb")).toEqual([
+        "let",
+        "a",
+        5,
+        ["let", "b", ["case", true, ["var", "a"], 0], ["var", "b"]],
+      ]);
+    });
+
+    it("flattens a variable whose if expression doesn't reference any earlier one", () => {
+      expect(compileSrc("var a = 5\nvar b = if 1 > 0 then 1 else 2\na + b")).toEqual([
+        "let",
+        "a",
+        5,
+        "b",
+        ["case", [">", 1, 0], 1, 2],
+        ["+", ["var", "a"], ["var", "b"]],
+      ]);
     });
   });
 });

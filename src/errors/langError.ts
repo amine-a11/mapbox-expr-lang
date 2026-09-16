@@ -52,3 +52,9 @@ export class ExpectedCharError extends LangError {
     super("Expected character", posStart, posEnd, details, text);
   }
 }
+
+export class TypeMismatchError extends LangError {
+  constructor(posStart: Position, posEnd: Position, details: string, text: string) {
+    super("Type Mismatch", posStart, posEnd, details, text);
+  }
+}

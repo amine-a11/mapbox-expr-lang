@@ -1,3 +1,5 @@
-var a = 2
-var b = 2
-a+b
+var a = get("pop_den")
+if a==2 then
+1+2/3
+elif a==3 then
+2+3

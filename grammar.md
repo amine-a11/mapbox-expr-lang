@@ -25,5 +25,10 @@ atom       ::= INT
              | KEYWORD:false
              | LPAREN expr RPAREN
              | KEYWORD:get LPAREN STRING RPAREN
+             | if-expr
+
+if-expr    ::= KEYWORD:if expr KEYWORD:then NEWLINE* expr
+               ( NEWLINE* KEYWORD:elif expr KEYWORD:then NEWLINE* expr )*
+               NEWLINE* KEYWORD:else NEWLINE* expr
 
 ```

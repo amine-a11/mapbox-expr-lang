@@ -4,7 +4,19 @@ import type { Position } from "../errors/position";
 export const DIGITS = "0123456789";
 export const LETTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 export const LETTERS_DIGITS = LETTERS + DIGITS;
-export const KEYWORDS = ["var", "get", "and", "or", "not", "true", "false"];
+export const KEYWORDS = [
+  "var",
+  "get",
+  "and",
+  "or",
+  "not",
+  "if",
+  "elif",
+  "else",
+  "then",
+  "true",
+  "false",
+];
 export enum TokenType {
   INT,
   FLOAT,

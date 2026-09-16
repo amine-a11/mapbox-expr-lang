@@ -3,7 +3,14 @@ import type { Token } from "../lexer/token";
 import type { Position } from "../errors/position";
 
 export type Node =
-  NumberNode | BinOpNode | UnaryOpNode | GetNode | BooleanNode | VarAccessNode | VarAssignNode;
+  | NumberNode
+  | BinOpNode
+  | UnaryOpNode
+  | GetNode
+  | BooleanNode
+  | VarAccessNode
+  | VarAssignNode
+  | IfNode;
 
 export interface Positioned {
   posStart: Position;
@@ -126,6 +133,34 @@ export class VarAssignNode implements Positioned {
 
   toString(): string {
     return `(VAR:${this.varNameTok.value}, ${this.valueNode}, ${this.bodyNode})`;
+  }
+
+  [inspect.custom](): string {
+    return this.toString();
+  }
+}
+
+export interface IfCase {
+  condition: Node;
+  value: Node;
+}
+
+export class IfNode implements Positioned {
+  posStart: Position;
+  posEnd: Position;
+
+  constructor(
+    public cases: IfCase[],
+    public elseCase: Node,
+    posStart: Position,
+  ) {
+    this.posStart = posStart;
+    this.posEnd = elseCase.posEnd;
+  }
+
+  toString(): string {
+    const cases = this.cases.map((c) => `${c.condition} -> ${c.value}`).join(", ");
+    return `(IF ${cases} ELSE ${this.elseCase})`;
   }
 
   [inspect.custom](): string {

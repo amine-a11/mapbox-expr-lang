@@ -5,10 +5,12 @@ import {
   BinOpNode,
   BooleanNode,
   GetNode,
+  IfNode,
   NumberNode,
   UnaryOpNode,
   VarAccessNode,
   VarAssignNode,
+  type IfCase,
   type Node,
 } from "./nodes";
 
@@ -67,10 +69,29 @@ export class Parser {
   }
 
   private moreStatementsFollow(): boolean {
-    let peekIdx = this.tokIdx;
-    while (this.tokens[peekIdx]?.type === TokenType.NEWLINE) peekIdx++;
-    const next = this.tokens[peekIdx];
+    const next = this.peekPastNewlines();
     return next !== undefined && next.type !== TokenType.EOF;
+  }
+
+  private peekPastNewlines(): Token | undefined {
+    let idx = this.tokIdx;
+    while (this.tokens[idx]?.type === TokenType.NEWLINE) idx++;
+    return this.tokens[idx];
+  }
+
+  private isKeyword(value: string): boolean {
+    return (
+      this.currentToken !== undefined &&
+      this.currentToken.type === TokenType.KEYWORD &&
+      this.currentToken.value === value
+    );
+  }
+
+  private skipNewlinesBeforeKeyword(value: string): void {
+    const next = this.peekPastNewlines();
+    if (next !== undefined && next.type === TokenType.KEYWORD && next.value === value) {
+      this.skipNewlines();
+    }
   }
 
   private atNewline(): boolean {
@@ -114,11 +135,14 @@ export class Parser {
     } else if (tok !== undefined && tok.type === TokenType.IDENTIFIER) {
       this.advance();
       return new VarAccessNode(tok);
+    } else if (tok !== undefined && tok.type === TokenType.KEYWORD && tok.value === "if") {
+      return this.ifExpr();
     }
 
     const [posStart, posEnd] = this.errorRange();
     const isEnd = tok === undefined || tok.type === TokenType.EOF;
-    const expected = "int, float, '+', '-', '(', 'get(...)', 'true', 'false', or an identifier";
+    const expected =
+      "int, float, '+', '-', '(', 'get(...)', 'true', 'false', an identifier, or 'if'";
     throw new InvalidSyntaxError(
       posStart,
       posEnd,
@@ -175,6 +199,35 @@ export class Parser {
       [TokenType.PLUS, TokenType.MINUS],
       () => this.term(),
     );
+  }
+
+  private ifExpr(): Node {
+    const ifTok = this.expectKeyword("if", "Expected 'if'");
+    const cases: IfCase[] = [];
+
+    const firstCondition = this.expr();
+    this.expectKeyword("then", "Expected 'then'");
+    this.skipNewlines();
+    const firstValue = this.expr();
+    cases.push({ condition: firstCondition, value: firstValue });
+
+    this.skipNewlinesBeforeKeyword("elif");
+    while (this.isKeyword("elif")) {
+      this.advance();
+      const condition = this.expr();
+      this.expectKeyword("then", "Expected 'then'");
+      this.skipNewlines();
+      const value = this.expr();
+      cases.push({ condition, value });
+      this.skipNewlinesBeforeKeyword("elif");
+    }
+
+    this.skipNewlinesBeforeKeyword("else");
+    this.expectKeyword("else", "Expected 'else'");
+    this.skipNewlines();
+    const elseCase = this.expr();
+
+    return new IfNode(cases, elseCase, ifTok.posStart);
   }
 
   private statement(): Node {
@@ -240,6 +293,17 @@ export class Parser {
   private expect(type: TokenType, message: string): Token {
     const tok = this.currentToken;
     if (tok !== undefined && tok.type === type) {
+      this.advance();
+      return tok;
+    }
+    const [posStart, posEnd] = this.errorRange();
+    const found = tok === undefined || tok.type === TokenType.EOF ? "end of input" : `${tok}`;
+    throw new InvalidSyntaxError(posStart, posEnd, `${message} (got ${found})`, this.text);
+  }
+
+  private expectKeyword(value: string, message: string): Token {
+    const tok = this.currentToken;
+    if (tok !== undefined && tok.type === TokenType.KEYWORD && tok.value === value) {
       this.advance();
       return tok;
     }
