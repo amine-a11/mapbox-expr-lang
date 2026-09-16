@@ -1,8 +1,9 @@
 {
   "name": "mapbox-expr-lang",
   "version": "0.1.0",
-  "description": "A human-friendly language that compiles to mapbox expression.",
+  "description": "A human-friendly language that compiles to Mapbox GL style expressions.",
   "type": "module",
+  "sideEffects": false,
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -35,12 +36,23 @@
   },
   "keywords": [
     "mapbox",
+    "mapbox-gl",
+    "mapbox-style",
     "expression",
+    "expression-language",
     "compiler",
     "dsl"
   ],
   "author": "amine-a11",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amine-a11/mapbox-expr-lang.git"
+  },
+  "homepage": "https://amine-a11.github.io/mapbox-expr-lang/",
+  "bugs": {
+    "url": "https://github.com/amine-a11/mapbox-expr-lang/issues"
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.7.0",

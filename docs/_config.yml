@@ -1,0 +1,4 @@
+title: mapbox-expr-lang
+description: A small language that compiles to Mapbox GL style expressions.
+theme: jekyll-theme-cayman
+show_downloads: false

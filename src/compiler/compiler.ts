@@ -52,7 +52,6 @@ function operatorSymbol(token: Token): string | undefined {
 
 const NUMERIC_OPERATORS = new Set(["+", "-", "*", "/", "%", "^"]);
 
-
 type DefiniteType = "number" | "string" | "boolean" | "color" | "object";
 type NonBooleanType = Exclude<DefiniteType, "boolean">;
 
@@ -106,7 +105,6 @@ const FUNCTIONS: Record<string, FunctionSpec> = {
   // Decision
   coalesce: { mapboxName: "coalesce", minArgs: 1, maxArgs: undefined },
 };
-
 
 interface ConstantSpec {
   mapboxName: string;
