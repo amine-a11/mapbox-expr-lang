@@ -21,7 +21,7 @@ power      ::= atom ( POW factor )*
 atom       ::= INT
              | FLOAT
              | STRING
-             | IDENTIFIER
+             | IDENTIFIER ( DOT IDENTIFIER | LPAREN ( expr ( COMMA expr )* )? RPAREN )?
              | KEYWORD:true
              | KEYWORD:false
              | LPAREN expr RPAREN

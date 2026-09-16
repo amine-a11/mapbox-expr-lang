@@ -4,6 +4,8 @@ import { Position } from "../errors/position";
 import {
   BinOpNode,
   BooleanNode,
+  CallNode,
+  ConstantNode,
   GetNode,
   IfNode,
   MatchNode,
@@ -141,6 +143,12 @@ export class Parser {
       return new GetNode(propertyTok, posStart, closeParen.posEnd);
     } else if (tok !== undefined && tok.type === TokenType.IDENTIFIER) {
       this.advance();
+      if (this.currentToken !== undefined && this.currentToken.type === TokenType.DOT) {
+        return this.constantExpr(tok);
+      }
+      if (this.currentToken !== undefined && this.currentToken.type === TokenType.LPAREN) {
+        return this.callExpr(tok);
+      }
       return new VarAccessNode(tok);
     } else if (tok !== undefined && tok.type === TokenType.KEYWORD && tok.value === "if") {
       return this.ifExpr();
@@ -300,6 +308,28 @@ export class Parser {
         : `Unexpected token: ${tok}, expected ${expected}`,
       this.text,
     );
+  }
+
+  private constantExpr(namespaceTok: Token): Node {
+    this.advance(); // consume DOT -- caller already confirmed it's there
+    const memberTok = this.expect(TokenType.IDENTIFIER, "Expected a constant name");
+    return new ConstantNode(namespaceTok, memberTok);
+  }
+
+  private callExpr(nameTok: Token): Node {
+    this.advance(); // consume LPAREN -- caller already confirmed it's there
+    const args: Node[] = [];
+
+    if (this.currentToken !== undefined && this.currentToken.type !== TokenType.RPAREN) {
+      args.push(this.expr());
+      while (this.currentToken !== undefined && this.currentToken.type === TokenType.COMMA) {
+        this.advance();
+        args.push(this.expr());
+      }
+    }
+
+    const closeParen = this.expect(TokenType.RPAREN, "Expected ')'");
+    return new CallNode(nameTok, args, closeParen.posEnd);
   }
 
   private statement(): Node {

@@ -12,7 +12,9 @@ export type Node =
   | VarAccessNode
   | VarAssignNode
   | IfNode
-  | MatchNode;
+  | MatchNode
+  | CallNode
+  | ConstantNode;
 
 export interface Positioned {
   posStart: Position;
@@ -214,6 +216,50 @@ export class MatchNode implements Positioned {
       .map((c) => `${c.labels.map((label) => `${label}`).join(", ")} -> ${c.value}`)
       .join(", ");
     return `(MATCH ${this.input} ${cases} ELSE ${this.elseCase})`;
+  }
+
+  [inspect.custom](): string {
+    return this.toString();
+  }
+}
+
+export class CallNode implements Positioned {
+  posStart: Position;
+  posEnd: Position;
+
+  constructor(
+    public nameTok: Token,
+    public args: Node[],
+    posEnd: Position,
+  ) {
+    this.posStart = nameTok.posStart;
+    this.posEnd = posEnd;
+  }
+
+  toString(): string {
+    return `CALL:${this.nameTok.value}(${this.args.join(", ")})`;
+  }
+
+  [inspect.custom](): string {
+    return this.toString();
+  }
+}
+
+// A namespaced zero-argument operator access, e.g. "math.e" or "camera.zoom".
+export class ConstantNode implements Positioned {
+  posStart: Position;
+  posEnd: Position;
+
+  constructor(
+    public namespaceTok: Token,
+    public memberTok: Token,
+  ) {
+    this.posStart = namespaceTok.posStart;
+    this.posEnd = memberTok.posEnd;
+  }
+
+  toString(): string {
+    return `CONST:${this.namespaceTok.value}.${this.memberTok.value}`;
   }
 
   [inspect.custom](): string {

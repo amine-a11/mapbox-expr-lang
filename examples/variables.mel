@@ -1,5 +1,2 @@
-var a = get("pop_den")
-if a==2 then
-1+2/3
-elif a==3 then
-2+3
+var a = min(1,2,3,get("pop_density"))
+(a*math.e)/2

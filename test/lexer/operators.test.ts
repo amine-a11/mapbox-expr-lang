@@ -23,6 +23,7 @@ describe("Lexer operators", () => {
     ["^", TokenType.POW],
     ["(", TokenType.LPAREN],
     [")", TokenType.RPAREN],
+    [".", TokenType.DOT],
   ] as const)("tokenizes the operator %s", (source, type) => {
     expect(simplify(tokenize(source))).toEqual([[type, undefined], EOF]);
   });

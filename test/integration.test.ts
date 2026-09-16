@@ -200,4 +200,43 @@ describe("Integration: combined multi-feature programs", () => {
       ],
     ]);
   });
+
+  it("zoom-dependent circle radius: a namespaced constant combined with arithmetic and min/max clamping", () => {
+    const source = `
+      var base = get("population") / 1000
+      min(20, max(4, base + camera.zoom / 2))
+    `;
+
+    expect(compileSrc(source)).toEqual([
+      "let",
+      "base",
+      ["/", ["get", "population"], 1000],
+      ["min", 20, ["max", 4, ["+", ["var", "base"], ["/", ["zoom"], 2]]]],
+    ]);
+  });
+
+  it("circle radius and color: math functions, min/max clamping, and a boolean-returning function feeding an if", () => {
+    const source = `
+      var density = get("population") / get("area")
+      var radius = min(50, max(5, sqrt(density)))
+      if toBoolean(get("highlighted")) then rgb(255, 0, 0) else rgba(0, 0, 255, 0.5)
+    `;
+
+    expect(compileSrc(source)).toEqual([
+      "let",
+      "density",
+      ["/", ["get", "population"], ["get", "area"]],
+      [
+        "let",
+        "radius",
+        ["min", 50, ["max", 5, ["sqrt", ["var", "density"]]]],
+        [
+          "case",
+          ["to-boolean", ["get", "highlighted"]],
+          ["rgb", 255, 0, 0],
+          ["rgba", 0, 0, 255, 0.5],
+        ],
+      ],
+    ]);
+  });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Lexer } from "../../src/lexer/lexer";
 import { Token, TokenType } from "../../src/lexer/token";
-import { IllegalCharError, UnterminatedStringError } from "../../src/errors/langError";
+import { UnterminatedStringError } from "../../src/errors/langError";
 
 function tokenize(source: string): Token[] {
   return new Lexer(source).makeToken();
@@ -31,11 +31,15 @@ describe("Lexer literals", () => {
       expect(simplify(tokenize("0"))).toEqual([[TokenType.INT, 0], EOF]);
     });
 
-    it("stops a number at a second decimal point", () => {
-      // Current behavior: lexes 1.2 as a float, then errors on the stray
-      // second '.'. If this is ever changed on purpose, update this test.
-      expect(() => tokenize("1.2.3")).toThrow(IllegalCharError);
-      expect(() => tokenize("1.2.3")).toThrow("'.'");
+    it("stops a number at a second decimal point, leaving the '.' as its own DOT token", () => {
+      // 1.2 lexes as a float; the second '.' is now a standalone DOT token
+      // (needed for namespaced constant access like "math.e"), not an error.
+      expect(simplify(tokenize("1.2.3"))).toEqual([
+        [TokenType.FLOAT, 1.2],
+        [TokenType.DOT, undefined],
+        [TokenType.INT, 3],
+        EOF,
+      ]);
     });
 
     it("tracks the source position of a token", () => {

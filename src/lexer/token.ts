@@ -40,6 +40,7 @@ export enum TokenType {
   LPAREN,
   RPAREN,
   COMMA,
+  DOT,
   NEWLINE,
   EOF,
 }
