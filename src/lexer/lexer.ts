@@ -1,5 +1,5 @@
 import { TokenType, Token, DIGITS, LETTERS, LETTERS_DIGITS, KEYWORDS } from "./token";
-import { IllegalCharError, UnterminatedStringError } from "../errors/langError";
+import { ExpectedCharError, IllegalCharError, UnterminatedStringError } from "../errors/langError";
 import { Position } from "../errors/position";
 
 export class Lexer {
@@ -60,6 +60,14 @@ export class Lexer {
         const posStart = this.pos.copy();
         this.advance();
         tokens.push(new Token(TokenType.RPAREN, undefined, posStart, this.pos));
+      } else if (this.currentChar === "!") {
+        tokens.push(this.makeNotEquals());
+      } else if (this.currentChar === "=") {
+        tokens.push(this.makeEquals());
+      } else if (this.currentChar === ">") {
+        tokens.push(this.makeGreaterThan());
+      } else if (this.currentChar === "<") {
+        tokens.push(this.makeLessThan());
       } else {
         const posStart = this.pos.copy();
         const char = this.currentChar;
@@ -71,6 +79,48 @@ export class Lexer {
     return tokens;
   }
 
+  makeNotEquals(): Token {
+    const posStart = this.pos.copy();
+    this.advance();
+
+    if (this.currentChar === "=") {
+      this.advance();
+      return new Token(TokenType.NE, undefined, posStart, this.pos);
+    }
+    throw new ExpectedCharError(posStart, this.pos, "Expected '=' after '!'", this.text);
+  }
+
+  makeEquals(): Token {
+    const posStart = this.pos.copy();
+    this.advance();
+
+    if (this.currentChar === "=") {
+      this.advance();
+      return new Token(TokenType.EE, undefined, posStart, this.pos);
+    }
+    throw new ExpectedCharError(posStart, this.pos, "Expected '=' after '='", this.text);
+  }
+
+  makeGreaterThan(): Token {
+    const posStart = this.pos.copy();
+    this.advance();
+
+    if (this.currentChar === "=") {
+      this.advance();
+      return new Token(TokenType.GTE, undefined, posStart, this.pos);
+    }
+    return new Token(TokenType.GT, undefined, posStart, this.pos);
+  }
+  makeLessThan(): Token {
+    const posStart = this.pos.copy();
+    this.advance();
+
+    if (this.currentChar === "=") {
+      this.advance();
+      return new Token(TokenType.LTE, undefined, posStart, this.pos);
+    }
+    return new Token(TokenType.LT, undefined, posStart, this.pos);
+  }
   makeNumber(): Token {
     const posStart = this.pos.copy();
     let num = "";

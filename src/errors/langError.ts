@@ -46,3 +46,9 @@ export class UnterminatedStringError extends LangError {
     super("Unterminated String", posStart, posEnd, "Expected a closing quote", text);
   }
 }
+
+export class ExpectedCharError extends LangError {
+  constructor(posStart: Position, posEnd: Position, details: string, text: string) {
+    super("Expected character", posStart, posEnd, details, text);
+  }
+}

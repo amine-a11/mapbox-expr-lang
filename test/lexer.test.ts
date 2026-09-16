@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { Lexer } from "../src/lexer/lexer";
 import { Token, TokenType } from "../src/lexer/token";
-import { IllegalCharError, UnterminatedStringError } from "../src/errors/langError";
+import {
+  ExpectedCharError,
+  IllegalCharError,
+  UnterminatedStringError,
+} from "../src/errors/langError";
 
 function tokenize(source: string): Token[] {
   return new Lexer(source).makeToken();
@@ -136,6 +140,75 @@ describe("Lexer", () => {
         [TokenType.LPAREN, undefined],
         [TokenType.STRING, "population"],
         [TokenType.RPAREN, undefined],
+        EOF,
+      ]);
+    });
+  });
+
+  describe("comparison and logical operators", () => {
+    it.each([
+      ["==", TokenType.EE],
+      ["!=", TokenType.NE],
+      ["<", TokenType.LT],
+      ["<=", TokenType.LTE],
+      [">", TokenType.GT],
+      [">=", TokenType.GTE],
+    ] as const)("tokenizes %s", (source, type) => {
+      expect(simplify(tokenize(source))).toEqual([[type, undefined], EOF]);
+    });
+
+    it("throws on a bare '!' -- negation is spelled 'not', not '!'", () => {
+      expect(() => tokenize("!")).toThrow(ExpectedCharError);
+      expect(() => tokenize("a ! b")).toThrow(ExpectedCharError);
+    });
+
+    it("still recognizes '!=' even though bare '!' is invalid on its own", () => {
+      expect(simplify(tokenize("a != b"))).toEqual([
+        [TokenType.IDENTIFIER, "a"],
+        [TokenType.NE, undefined],
+        [TokenType.IDENTIFIER, "b"],
+        EOF,
+      ]);
+    });
+
+    it("does not confuse < or > with their -or-equal forms", () => {
+      expect(simplify(tokenize("a < b"))).toEqual([
+        [TokenType.IDENTIFIER, "a"],
+        [TokenType.LT, undefined],
+        [TokenType.IDENTIFIER, "b"],
+        EOF,
+      ]);
+      expect(simplify(tokenize("a > b"))).toEqual([
+        [TokenType.IDENTIFIER, "a"],
+        [TokenType.GT, undefined],
+        [TokenType.IDENTIFIER, "b"],
+        EOF,
+      ]);
+    });
+
+    it("throws on a bare '=' -- there's no assignment in this language", () => {
+      expect(() => tokenize("=")).toThrow(ExpectedCharError);
+    });
+
+    it("recognizes 'and', 'or', and 'not' as keywords, not plain identifiers", () => {
+      expect(simplify(tokenize("and"))).toEqual([[TokenType.KEYWORD, "and"], EOF]);
+      expect(simplify(tokenize("or"))).toEqual([[TokenType.KEYWORD, "or"], EOF]);
+      expect(simplify(tokenize("not"))).toEqual([[TokenType.KEYWORD, "not"], EOF]);
+    });
+
+    it("recognizes 'true' and 'false' as keywords, not plain identifiers", () => {
+      expect(simplify(tokenize("true"))).toEqual([[TokenType.KEYWORD, "true"], EOF]);
+      expect(simplify(tokenize("false"))).toEqual([[TokenType.KEYWORD, "false"], EOF]);
+    });
+
+    it("tokenizes a full comparison expression", () => {
+      expect(simplify(tokenize('get("speed") >= 100'))).toEqual([
+        [TokenType.KEYWORD, "get"],
+        [TokenType.LPAREN, undefined],
+        [TokenType.STRING, "speed"],
+        [TokenType.RPAREN, undefined],
+        [TokenType.GTE, undefined],
+        [TokenType.INT, 100],
         EOF,
       ]);
     });

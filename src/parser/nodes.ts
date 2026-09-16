@@ -2,7 +2,7 @@ import { inspect } from "node:util";
 import type { Token } from "../lexer/token";
 import type { Position } from "../errors/position";
 
-export type Node = NumberNode | BinOpNode | UnaryOpNode | GetNode;
+export type Node = NumberNode | BinOpNode | UnaryOpNode | GetNode | BooleanNode;
 
 export interface Positioned {
   posStart: Position;
@@ -64,6 +64,24 @@ export class UnaryOpNode implements Positioned {
 
   toString(): string {
     return `(${this.opTok}, ${this.node})`;
+  }
+
+  [inspect.custom](): string {
+    return this.toString();
+  }
+}
+
+export class BooleanNode implements Positioned {
+  posStart: Position;
+  posEnd: Position;
+
+  constructor(public tok: Token) {
+    this.posStart = tok.posStart;
+    this.posEnd = tok.posEnd;
+  }
+
+  toString(): string {
+    return `${this.tok}`;
   }
 
   [inspect.custom](): string {

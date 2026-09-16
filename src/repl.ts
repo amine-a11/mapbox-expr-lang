@@ -15,7 +15,7 @@ while (true) {
   try {
     const tokens = new Lexer(input).makeToken();
     const ast = new Parser(tokens, input).parse();
-    const result = new Compiler(input).compile(ast);
+    const result = new Compiler().compile(ast);
     console.dir(result, { depth: null });
   } catch (error) {
     if (error instanceof LangError) console.log(`${error}`);

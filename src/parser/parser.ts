@@ -1,7 +1,7 @@
 import { TokenType, type Token } from "../lexer/token";
 import { InvalidSyntaxError } from "../errors/langError";
 import { Position } from "../errors/position";
-import { BinOpNode, GetNode, NumberNode, UnaryOpNode, type Node } from "./nodes";
+import { BinOpNode, BooleanNode, GetNode, NumberNode, UnaryOpNode, type Node } from "./nodes";
 
 export class Parser {
   private tokIdx: number;
@@ -41,16 +41,18 @@ export class Parser {
     if (tok !== undefined && (tok.type === TokenType.INT || tok.type === TokenType.FLOAT)) {
       this.advance();
       return new NumberNode(tok);
+    } else if (
+      tok !== undefined &&
+      tok.type === TokenType.KEYWORD &&
+      (tok.value === "true" || tok.value === "false")
+    ) {
+      this.advance();
+      return new BooleanNode(tok);
     } else if (tok !== undefined && tok.type === TokenType.LPAREN) {
       this.advance();
       const innerExpr = this.expr();
-      if (this.currentToken !== undefined && this.currentToken.type === TokenType.RPAREN) {
-        this.advance();
-        return innerExpr;
-      } else {
-        const [posStart, posEnd] = this.errorRange();
-        throw new InvalidSyntaxError(posStart, posEnd, "Expected ')'", this.text);
-      }
+      this.expect(TokenType.RPAREN, "Expected ')'");
+      return innerExpr;
     } else if (tok !== undefined && tok.type === TokenType.KEYWORD && tok.value === "get") {
       const posStart = tok.posStart;
       this.advance();
@@ -62,12 +64,13 @@ export class Parser {
 
     const [posStart, posEnd] = this.errorRange();
     const isEnd = tok === undefined || tok.type === TokenType.EOF;
+    const expected = "int, float, '+', '-', '(', 'get(...)', 'true' or 'false'";
     throw new InvalidSyntaxError(
       posStart,
       posEnd,
       isEnd
-        ? "Unexpected end of input, expected int, float, '+', '-' or '('"
-        : `Unexpected token: ${tok}, expected int, float, '+', '-' or '('`,
+        ? `Unexpected end of input, expected ${expected}`
+        : `Unexpected token: ${tok}, expected ${expected}`,
       this.text,
     );
   }
@@ -98,7 +101,21 @@ export class Parser {
     );
   }
 
-  private expr(): Node {
+  private compExpr(): Node {
+    const tok = this.currentToken;
+    if (tok !== undefined && tok.type === TokenType.KEYWORD && tok.value === "not") {
+      this.advance();
+      const operand = this.compExpr();
+      return new UnaryOpNode(tok, operand);
+    }
+    return this.binOp(
+      () => this.arithExpr(),
+      [TokenType.EE, TokenType.NE, TokenType.LT, TokenType.LTE, TokenType.GT, TokenType.GTE],
+      () => this.arithExpr(),
+    );
+  }
+
+  private arithExpr(): Node {
     return this.binOp(
       () => this.term(),
       [TokenType.PLUS, TokenType.MINUS],
@@ -106,10 +123,28 @@ export class Parser {
     );
   }
 
-  private binOp(func1: () => Node, ops: TokenType[], func2: () => Node): Node {
+  private expr(): Node {
+    return this.binOp(
+      () => this.compExpr(),
+      [
+        [TokenType.KEYWORD, "and"],
+        [TokenType.KEYWORD, "or"],
+      ],
+      () => this.compExpr(),
+    );
+  }
+
+  private binOp(
+    func1: () => Node,
+    ops: ([TokenType, string] | TokenType)[],
+    func2: () => Node,
+  ): Node {
     let left = func1();
 
-    while (this.currentToken !== undefined && ops.includes(this.currentToken.type)) {
+    while (
+      this.currentToken !== undefined &&
+      ops.some((op) => this.matchesOp(this.currentToken, op))
+    ) {
       const opToken = this.currentToken;
       this.advance();
       const right = func2();
@@ -117,6 +152,14 @@ export class Parser {
     }
 
     return left;
+  }
+
+  private matchesOp(token: Token | undefined, op: [TokenType, string] | TokenType): boolean {
+    if (token === undefined) return false;
+    if (Array.isArray(op)) {
+      return token.type === op[0] && token.value === op[1];
+    }
+    return token.type === op;
   }
 
   private errorRange(): [Position, Position] {
@@ -134,6 +177,7 @@ export class Parser {
       return tok;
     }
     const [posStart, posEnd] = this.errorRange();
-    throw new InvalidSyntaxError(posStart, posEnd, message, this.text);
+    const found = tok === undefined || tok.type === TokenType.EOF ? "end of input" : `${tok}`;
+    throw new InvalidSyntaxError(posStart, posEnd, `${message} (got ${found})`, this.text);
   }
 }
