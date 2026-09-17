@@ -91,6 +91,20 @@ describe("Compiler function calls", () => {
     expect(compileSrc("coalesce(1, 2, 3)")).toEqual(["coalesce", 1, 2, 3]);
   });
 
+  describe("lookup", () => {
+    it("compiles has(key) checking the current feature's properties", () => {
+      expect(compileSrc('has("name")')).toEqual(["has", "name"]);
+    });
+
+    it("compiles has(key, object) checking a given object instead", () => {
+      expect(compileSrc('has("name", feature.properties)')).toEqual([
+        "has",
+        "name",
+        ["properties"],
+      ]);
+    });
+  });
+
   it("is usable as the value of a variable assignment", () => {
     expect(compileSrc("var x = abs(-5)\nx + 1")).toEqual([
       "let",
@@ -120,6 +134,13 @@ describe("Compiler function calls", () => {
     it("rejects too many arguments", () => {
       expect(() => compileSrc("abs(1, 2)")).toThrow('"abs" expects exactly 1 argument, but got 2');
       expect(() => compileSrc("rgb(1, 2)")).toThrow('"rgb" expects exactly 3 arguments, but got 2');
+    });
+
+    it("rejects has() called with the wrong number of arguments", () => {
+      expect(() => compileSrc("has()")).toThrow('"has" expects 1-2 arguments, but got 0');
+      expect(() => compileSrc('has("a", "b", "c")')).toThrow(
+        '"has" expects 1-2 arguments, but got 3',
+      );
     });
 
     it("rejects functions Mapbox itself documents but MapLibre doesn't implement", () => {
@@ -153,6 +174,10 @@ describe("Compiler function calls", () => {
 
     it("allows coalesce(...), since its return type can't be known statically", () => {
       expect(() => compileSrc("coalesce(true, false) and true")).not.toThrow();
+    });
+
+    it("allows has(...), since it genuinely always returns a boolean", () => {
+      expect(() => compileSrc('has("name") and true')).not.toThrow();
     });
   });
 

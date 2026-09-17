@@ -41,9 +41,11 @@ Anchors were checked against the live page, not guessed.
 
 ## Lookup
 
-| Syntax        | Compiles to       | Docs                                                                   |
-| ------------- | ----------------- | ---------------------------------------------------------------------- |
-| `get("prop")` | `["get", "prop"]` | [`get`](https://docs.mapbox.com/style-spec/reference/expressions/#get) |
+| Syntax                | Compiles to               | Docs                                                                   |
+| --------------------- | ------------------------- | ---------------------------------------------------------------------- |
+| `get("prop")`         | `["get", "prop"]`         | [`get`](https://docs.mapbox.com/style-spec/reference/expressions/#get) |
+| `has("prop")`         | `["has", "prop"]`         | [`has`](https://docs.mapbox.com/style-spec/reference/expressions/#has) |
+| `has("prop", object)` | `["has", "prop", object]` | [`has`](https://docs.mapbox.com/style-spec/reference/expressions/#has) |
 
 ## Variables
 
@@ -129,15 +131,17 @@ Zero-argument operators, grouped by namespace.
 
 ## Not yet supported
 
-Mostly the [Lookup](https://docs.mapbox.com/style-spec/reference/expressions/#lookup)
-family beyond `get` (`at`, `has`, `in`, `index-of`, `length`, `slice`, `split`,
-[`within`](https://docs.mapbox.com/style-spec/reference/expressions/#within)),
-and the richer [Types](https://docs.mapbox.com/style-spec/reference/expressions/#types)
+Mostly the rest of the [Lookup](https://docs.mapbox.com/style-spec/reference/expressions/#lookup)
+family beyond `get`/`has` (`at`, `at-interpolated`, `config`, `in`, `index-of`,
+`length`, `measure-light`, `slice`, `split`, `worldview`), and the richer
+[Types](https://docs.mapbox.com/style-spec/reference/expressions/#types)
 (`array`, `object`, `collator`, `format`, `image`, `literal`, `number-format`).
-[`distance`](https://docs.mapbox.com/style-spec/reference/expressions/#distance)
-and [`feature-state`](https://docs.mapbox.com/style-spec/reference/expressions/#feature-state)
-take a GeoJSON geometry / a string argument respectively, and need their own
-syntax design rather than fitting the patterns above.
+[`distance`](https://docs.mapbox.com/style-spec/reference/expressions/#distance),
+[`feature-state`](https://docs.mapbox.com/style-spec/reference/expressions/#feature-state),
+and [`within`](https://docs.mapbox.com/style-spec/reference/expressions/#within)
+(a Decision operator, not Lookup) take a GeoJSON geometry / a string argument /
+a GeoJSON geometry respectively, and need their own syntax design rather than
+fitting the patterns above.
 
 Five documented Mapbox operators are left out on purpose, not by oversight:
 [`random`](https://docs.mapbox.com/style-spec/reference/expressions/#random),

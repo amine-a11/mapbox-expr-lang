@@ -62,6 +62,18 @@ get("name")
 ["get", "name"]
 ```
 
+[`has(...)`](https://docs.mapbox.com/style-spec/reference/expressions/#has) checks
+whether a property exists, without reading it -- handy before a `get` that would
+otherwise return null:
+
+```
+has("name_en")
+```
+
+```json
+["has", "name_en"]
+```
+
 ## Arithmetic
 
 `+ - * / % ^`, with the precedence you'd expect, plus unary `-`.
