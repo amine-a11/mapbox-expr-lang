@@ -104,6 +104,12 @@ const FUNCTIONS: Record<string, FunctionSpec> = {
 
   // Decision
   coalesce: { mapboxName: "coalesce", minArgs: 1, maxArgs: undefined },
+
+  // Lookup
+  // Verified against the real evaluator (@maplibre/maplibre-gl-style-spec):
+  // has(key) checks the current feature's properties; has(key, object) checks
+  // a given object instead. Both forms always return a boolean.
+  has: { mapboxName: "has", minArgs: 1, maxArgs: 2, returnType: "boolean" },
 };
 
 interface ConstantSpec {
