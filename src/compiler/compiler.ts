@@ -25,7 +25,7 @@ import {
 import { TokenType, type Token } from "../lexer/token";
 import { RuntimeError, TypeMismatchError } from "../errors/langError";
 
-export type MapboxExpression = MapboxExpression[] | string | number | boolean | null;
+export type MapboxExpression = MapboxExpression[] | string | number | boolean;
 
 const BINARY_OPERATORS: Partial<Record<TokenType, string>> = {
   [TokenType.PLUS]: "+",

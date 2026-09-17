@@ -1,5 +1,6 @@
-import { inspect } from "node:util";
 import type { Position } from "../errors/position";
+
+const NODE_INSPECT_CUSTOM = Symbol.for("nodejs.util.inspect.custom");
 
 export const DIGITS = "0123456789";
 export const LETTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -70,7 +71,7 @@ export class Token {
     return type;
   }
 
-  [inspect.custom](): string {
+  [NODE_INSPECT_CUSTOM](): string {
     return this.toString();
   }
 }

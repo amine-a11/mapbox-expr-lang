@@ -1,6 +1,7 @@
-import { inspect } from "node:util";
 import type { Token } from "../lexer/token";
 import type { Position } from "../errors/position";
+
+const NODE_INSPECT_CUSTOM = Symbol.for("nodejs.util.inspect.custom");
 
 export type Node =
   | NumberNode
@@ -36,7 +37,7 @@ export class NumberNode implements Positioned {
     return `${this.tok}`;
   }
 
-  [inspect.custom](): string {
+  [NODE_INSPECT_CUSTOM](): string {
     return this.toString();
   }
 }
@@ -54,7 +55,7 @@ export class StringNode implements Positioned {
     return `${this.tok}`;
   }
 
-  [inspect.custom](): string {
+  [NODE_INSPECT_CUSTOM](): string {
     return this.toString();
   }
 }
@@ -77,7 +78,7 @@ export class BinOpNode implements Positioned {
     return `(${this.leftNode}, ${this.opToken}, ${this.rightNode})`;
   }
 
-  [inspect.custom](): string {
+  [NODE_INSPECT_CUSTOM](): string {
     return this.toString();
   }
 }
@@ -98,7 +99,7 @@ export class UnaryOpNode implements Positioned {
     return `(${this.opTok}, ${this.node})`;
   }
 
-  [inspect.custom](): string {
+  [NODE_INSPECT_CUSTOM](): string {
     return this.toString();
   }
 }
@@ -116,7 +117,7 @@ export class BooleanNode implements Positioned {
     return `${this.tok}`;
   }
 
-  [inspect.custom](): string {
+  [NODE_INSPECT_CUSTOM](): string {
     return this.toString();
   }
 }
@@ -135,7 +136,7 @@ export class VarAccessNode implements Positioned {
     return `${this.tok}`;
   }
 
-  [inspect.custom](): string {
+  [NODE_INSPECT_CUSTOM](): string {
     return this.toString();
   }
 }
@@ -159,7 +160,7 @@ export class VarAssignNode implements Positioned {
     return `(VAR:${this.varNameTok.value}, ${this.valueNode}, ${this.bodyNode})`;
   }
 
-  [inspect.custom](): string {
+  [NODE_INSPECT_CUSTOM](): string {
     return this.toString();
   }
 }
@@ -187,7 +188,7 @@ export class IfNode implements Positioned {
     return `(IF ${cases} ELSE ${this.elseCase})`;
   }
 
-  [inspect.custom](): string {
+  [NODE_INSPECT_CUSTOM](): string {
     return this.toString();
   }
 }
@@ -220,7 +221,7 @@ export class MatchNode implements Positioned {
     return `(MATCH ${this.input} ${cases} ELSE ${this.elseCase})`;
   }
 
-  [inspect.custom](): string {
+  [NODE_INSPECT_CUSTOM](): string {
     return this.toString();
   }
 }
@@ -242,7 +243,7 @@ export class CallNode implements Positioned {
     return `CALL:${this.nameTok.value}(${this.args.join(", ")})`;
   }
 
-  [inspect.custom](): string {
+  [NODE_INSPECT_CUSTOM](): string {
     return this.toString();
   }
 }
@@ -264,7 +265,7 @@ export class ConstantNode implements Positioned {
     return `CONST:${this.namespaceTok.value}.${this.memberTok.value}`;
   }
 
-  [inspect.custom](): string {
+  [NODE_INSPECT_CUSTOM](): string {
     return this.toString();
   }
 }
@@ -282,7 +283,7 @@ export class LinearInterpolationNode implements Positioned {
     return "LINEAR";
   }
 
-  [inspect.custom](): string {
+  [NODE_INSPECT_CUSTOM](): string {
     return this.toString();
   }
 }
@@ -298,7 +299,7 @@ export class ExponentialInterpolationNode implements Positioned {
     return `EXPONENTIAL(${this.base})`;
   }
 
-  [inspect.custom](): string {
+  [NODE_INSPECT_CUSTOM](): string {
     return this.toString();
   }
 }
@@ -317,7 +318,7 @@ export class CubicBezierInterpolationNode implements Positioned {
     return `CUBIC_BEZIER(${this.x1}, ${this.y1}, ${this.x2}, ${this.y2})`;
   }
 
-  [inspect.custom](): string {
+  [NODE_INSPECT_CUSTOM](): string {
     return this.toString();
   }
 }
@@ -360,7 +361,7 @@ export class InterpolateNode implements Positioned {
     return `(${label} ${this.interpolationType} ${this.input} ${stops})`;
   }
 
-  [inspect.custom](): string {
+  [NODE_INSPECT_CUSTOM](): string {
     return this.toString();
   }
 }
@@ -393,7 +394,7 @@ export class StepNode implements Positioned {
     return `(STEP ${this.input} DEFAULT ${this.defaultValue} ${stops})`;
   }
 
-  [inspect.custom](): string {
+  [NODE_INSPECT_CUSTOM](): string {
     return this.toString();
   }
 }
@@ -409,7 +410,7 @@ export class GetNode implements Positioned {
     return `GET:${this.tok.value}`;
   }
 
-  [inspect.custom](): string {
+  [NODE_INSPECT_CUSTOM](): string {
     return this.toString();
   }
 }
