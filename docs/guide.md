@@ -8,7 +8,7 @@ permalink: /guide/
 Learn the language by example. Every snippet below shows the source and the
 exact JSON `compile()` returns for it.
 
-For the full list of operators, see the [operator reference](operators.md).
+For the full list of operators, see the [operator reference](operators/).
 For the formal grammar, see [grammar.md](https://github.com/amine-a11/mapbox-expr-lang/blob/main/grammar.md).
 Want to try snippets as you read? Use the [playground](playground.html).
 
@@ -255,7 +255,7 @@ match get("lanes")
 ## Functions
 
 Called like you'd expect in any language: `name(arg1, arg2, ...)`. See the
-[operator reference](operators.md) for the full list, grouped by category
+[operator reference](operators/) for the full list, grouped by category
 (math, string, color, type conversion).
 
 ```
@@ -315,7 +315,7 @@ coalesce(get("name_en"), get("name"), "Unnamed")
 
 Zero-argument operators, grouped under a short namespace so they're easy to
 find (`math.*`, `camera.*`, `feature.*`, `heatmap.*`). See the
-[operator reference](operators.md#constants) for the full list.
+[operator reference](operators/#constants) for the full list.
 
 ```
 math.pi
