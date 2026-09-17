@@ -6,7 +6,7 @@ import { LangError } from "./errors/langError";
 
 const path = process.argv[2];
 if (path === undefined) {
-  console.error("Usage: npm run run-file -- <path/to/file.mel>");
+  console.error("Usage: npm run run-file -- <path/to/source-file>");
   process.exit(1);
 }
 

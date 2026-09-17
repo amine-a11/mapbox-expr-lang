@@ -6,19 +6,29 @@
     <title>mapbox-expr-lang playground</title>
     <meta
       name="description"
-      content="Type mapbox-expr-lang source and see the compiled Mapbox GL expression JSON live."
+      content="Type mapbox-expr-lang source and compile it to a Mapbox GL expression."
     />
     <style>
       :root {
-        --bg: #0d1117;
-        --panel: #151b23;
-        --border: #2a323c;
-        --text: #e6edf3;
-        --text-dim: #9aa7b3;
-        --accent: #58a6ff;
-        --error: #ff7b72;
-        --ok: #7ee787;
-        --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        --bg: #21252b;
+        --surface: #282c34;
+        --surface-alt: #2c313a;
+        --border: #3e4451;
+        --text: #abb2bf;
+        --text-bright: #dcdfe4;
+        --text-dim: #6b7280;
+        --accent: #61afef;
+        --accent-text: #0d1117;
+        --keyword: #c678dd;
+        --string: #98c379;
+        --number: #d19a66;
+        --function: #61afef;
+        --constant: #56b6c2;
+        --error: #e06c75;
+        --ok: #98c379;
+        --mono:
+          ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+        --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       }
       * {
         box-sizing: border-box;
@@ -29,25 +39,31 @@
         height: 100%;
         background: var(--bg);
         color: var(--text);
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-family: var(--sans);
       }
       header {
         display: flex;
-        align-items: baseline;
-        gap: 16px;
+        align-items: center;
+        gap: 18px;
         flex-wrap: wrap;
-        padding: 14px 20px;
+        padding: 12px 20px;
         border-bottom: 1px solid var(--border);
+        background: var(--bg);
       }
       header h1 {
-        font-size: 16px;
+        font-size: 15px;
+        font-weight: 600;
         margin: 0;
+        color: var(--text-bright);
+      }
+      header nav {
+        display: flex;
+        gap: 16px;
       }
       header nav a {
         color: var(--text-dim);
         text-decoration: none;
         font-size: 13px;
-        margin-right: 14px;
       }
       header nav a:hover {
         color: var(--accent);
@@ -55,19 +71,27 @@
       .examples {
         margin-left: auto;
         display: flex;
-        gap: 6px;
+        align-items: center;
+        gap: 8px;
+      }
+      .examples span {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-dim);
       }
       .examples button {
-        background: #1c232c;
-        color: var(--text-dim);
+        background: var(--surface-alt);
+        color: var(--text);
         border: 1px solid var(--border);
         border-radius: 6px;
-        padding: 4px 10px;
+        padding: 5px 11px;
         font-size: 12px;
+        font-family: var(--mono);
         cursor: pointer;
       }
       .examples button:hover {
-        color: var(--text);
+        color: var(--text-bright);
         border-color: var(--accent);
       }
       main {
@@ -75,20 +99,20 @@
         grid-template-columns: 1fr 1fr;
         gap: 1px;
         background: var(--border);
-        height: calc(100vh - 53px);
+        height: calc(100vh - 49px);
       }
-      @media (max-width: 720px) {
+      @media (max-width: 760px) {
         main {
           grid-template-columns: 1fr;
           height: auto;
         }
-        #source,
+        .editor,
         #output {
-          min-height: 45vh;
+          min-height: 42vh;
         }
       }
       .pane {
-        background: var(--bg);
+        background: var(--surface);
         display: flex;
         flex-direction: column;
         min-width: 0;
@@ -97,38 +121,123 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 8px 14px;
+        padding: 7px 14px;
         font-size: 11px;
         text-transform: uppercase;
-        letter-spacing: 0.04em;
+        letter-spacing: 0.05em;
         color: var(--text-dim);
         border-bottom: 1px solid var(--border);
+        background: var(--bg);
       }
-      .pane-label button {
-        background: none;
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
         border: 1px solid var(--border);
-        color: var(--text-dim);
-        border-radius: 5px;
-        padding: 2px 8px;
+        background: var(--surface-alt);
+        color: var(--text);
+        border-radius: 6px;
+        padding: 4px 10px;
         font-size: 11px;
+        font-family: var(--sans);
         cursor: pointer;
       }
-      .pane-label button:hover {
-        color: var(--text);
+      .btn:hover {
+        color: var(--text-bright);
         border-color: var(--accent);
       }
-      #source {
+      .btn.primary {
+        background: var(--accent);
+        color: var(--accent-text);
+        border-color: var(--accent);
+        font-weight: 600;
+      }
+      .btn.primary:hover {
+        filter: brightness(1.08);
+      }
+      .btn.primary:disabled {
+        opacity: 0.5;
+        cursor: default;
+        filter: none;
+      }
+      .btn kbd {
+        font-family: var(--mono);
+        font-size: 10px;
+        opacity: 0.75;
+      }
+
+      /* --- code editor: textarea overlaid on a highlighted <pre>, kept in sync --- */
+      .editor {
         flex: 1;
-        resize: none;
-        border: none;
-        outline: none;
-        background: var(--bg);
-        color: var(--text);
+        display: flex;
+        overflow: hidden;
+        position: relative;
+      }
+      .gutter {
+        flex-shrink: 0;
+        width: 42px;
+        overflow: hidden;
+        padding: 14px 0;
+        text-align: right;
         font-family: var(--mono);
         font-size: 14px;
         line-height: 1.6;
-        padding: 14px;
+        color: var(--text-dim);
+        background: var(--bg);
+        border-right: 1px solid var(--border);
+        user-select: none;
+        white-space: pre;
       }
+      .gutter div {
+        padding-right: 10px;
+      }
+      .code-wrap {
+        position: relative;
+        flex: 1;
+        min-width: 0;
+      }
+      .code-wrap pre,
+      .code-wrap textarea {
+        position: absolute;
+        inset: 0;
+        margin: 0;
+        padding: 14px;
+        font-family: var(--mono);
+        font-size: 14px;
+        line-height: 1.6;
+        white-space: pre;
+        overflow: auto;
+        tab-size: 2;
+      }
+      .code-wrap pre {
+        pointer-events: none;
+        color: var(--text);
+      }
+      .code-wrap textarea {
+        background: transparent;
+        color: transparent;
+        caret-color: var(--text-bright);
+        border: none;
+        outline: none;
+        resize: none;
+        z-index: 1;
+      }
+      .tok-keyword {
+        color: var(--keyword);
+      }
+      .tok-string {
+        color: var(--string);
+      }
+      .tok-number {
+        color: var(--number);
+      }
+      .tok-function {
+        color: var(--function);
+      }
+      .tok-constant {
+        color: var(--constant);
+      }
+
       #output {
         flex: 1;
         margin: 0;
@@ -139,6 +248,7 @@
         line-height: 1.6;
         white-space: pre-wrap;
         word-break: break-word;
+        color: var(--text-dim);
       }
       #output.ok {
         color: var(--ok);
@@ -149,7 +259,8 @@
       #status {
         font-size: 11px;
         color: var(--text-dim);
-        padding: 0 14px 10px;
+        padding: 8px 14px;
+        border-top: 1px solid var(--border);
       }
     </style>
   </head>
@@ -163,6 +274,7 @@
         <a href="https://github.com/amine-a11/mapbox-expr-lang">GitHub</a>
       </nav>
       <div class="examples">
+        <span>Examples</span>
         <button data-example="basics">Basics</button>
         <button data-example="match">match</button>
         <button data-example="interpolate">interpolate</button>
@@ -170,23 +282,38 @@
     </header>
     <main>
       <div class="pane">
-        <div class="pane-label"><span>.mel source</span></div>
-        <textarea id="source" spellcheck="false"></textarea>
+        <div class="pane-label">
+          <span>Source</span>
+          <button class="btn primary" id="run" disabled>
+            &#9654; Compile <kbd>Ctrl+Enter</kbd>
+          </button>
+        </div>
+        <div class="editor">
+          <div class="gutter" id="gutter">1</div>
+          <div class="code-wrap">
+            <pre aria-hidden="true"><code id="highlighted"></code></pre>
+            <textarea
+              id="source"
+              spellcheck="false"
+              autocapitalize="off"
+              autocomplete="off"
+            ></textarea>
+          </div>
+        </div>
       </div>
       <div class="pane">
         <div class="pane-label">
-          <span>compiled JSON</span>
-          <button id="copy">Copy</button>
+          <span>Compiled expression</span>
+          <button class="btn" id="copy">Copy</button>
         </div>
-        <pre id="output"></pre>
-        <div id="status"></div>
+        <pre id="output">Click Compile to see the result.</pre>
+        <div id="status">Loading compiler…</div>
       </div>
     </main>
 
     <script type="module">
-      // Loaded from jsdelivr's npm CDN -- works as soon as the package is
-      // published (no bundler needed, since dist/index.js is a plain ES
-      // module). Until then this import 404s and the page shows a load error.
+      // Loaded from jsdelivr's npm CDN -- works once the package is
+      // published (dist/index.js is a plain ES module, no bundler needed).
       import { compile } from "https://cdn.jsdelivr.net/npm/mapbox-expr-lang/dist/index.js";
 
       const EXAMPLES = {
@@ -209,34 +336,149 @@ else
 `,
       };
 
+      const KEYWORDS = new Set([
+        "var",
+        "get",
+        "and",
+        "or",
+        "not",
+        "if",
+        "elif",
+        "else",
+        "then",
+        "match",
+        "true",
+        "false",
+        "interpolate",
+        "interpolateHcl",
+        "interpolateLab",
+        "step",
+        "default",
+      ]);
+
+      function escapeHtml(s) {
+        return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+
+      // A small regex tokenizer for syntax highlighting only -- not the
+      // real lexer. It doesn't need to be exact, just good enough to color
+      // strings/numbers/keywords/function-calls/namespaced constants
+      // consistently with the real grammar's actual keyword list.
+      const TOKEN_RE = /"(?:[^"\\]|\\.)*"|\b\d+(?:\.\d+)?\b|[A-Za-z_][A-Za-z0-9_]*/g;
+
+      function highlight(source) {
+        let out = "";
+        let last = 0;
+        let match;
+        TOKEN_RE.lastIndex = 0;
+        while ((match = TOKEN_RE.exec(source))) {
+          const text = match[0];
+          const start = match.index;
+          const end = start + text.length;
+          out += escapeHtml(source.slice(last, start));
+
+          let cls = null;
+          if (text[0] === '"') {
+            cls = "tok-string";
+          } else if (/^\d/.test(text)) {
+            cls = "tok-number";
+          } else if (KEYWORDS.has(text)) {
+            cls = "tok-keyword";
+          } else {
+            let i = end;
+            while (i < source.length && /\s/.test(source[i])) i++;
+            let j = start - 1;
+            while (j >= 0 && /\s/.test(source[j])) j--;
+            if (source[i] === "(") cls = "tok-function";
+            else if (source[i] === "." || source[j] === ".") cls = "tok-constant";
+          }
+
+          out += cls ? `<span class="${cls}">${escapeHtml(text)}</span>` : escapeHtml(text);
+          last = end;
+        }
+        out += escapeHtml(source.slice(last));
+        return out;
+      }
+
       const sourceEl = document.getElementById("source");
+      const highlightedEl = document.getElementById("highlighted");
+      const gutterEl = document.getElementById("gutter");
       const outputEl = document.getElementById("output");
       const statusEl = document.getElementById("status");
+      const runBtn = document.getElementById("run");
       const copyBtn = document.getElementById("copy");
 
+      function renderHighlight() {
+        highlightedEl.innerHTML = highlight(sourceEl.value) + "\n";
+      }
+
+      function renderGutter() {
+        const lines = sourceEl.value.split("\n").length;
+        let html = "";
+        for (let i = 1; i <= lines; i++) html += `<div>${i}</div>`;
+        gutterEl.innerHTML = html;
+      }
+
+      function syncScroll() {
+        highlightedEl.parentElement.scrollTop = sourceEl.scrollTop;
+        highlightedEl.parentElement.scrollLeft = sourceEl.scrollLeft;
+        gutterEl.scrollTop = sourceEl.scrollTop;
+      }
+
+      // Plain JSON.stringify(x, null, 2) puts every array element on its own
+      // line, which for a nested Mapbox expression is dozens of lines for
+      // something simple. This keeps a sub-array on one line as long as it
+      // fits, only breaking the ones that don't -- the same style used
+      // throughout the docs.
+      function compactStringify(value) {
+        if (Array.isArray(value)) {
+          return "[" + value.map(compactStringify).join(", ") + "]";
+        }
+        return JSON.stringify(value);
+      }
+
+      function formatCompiled(value, indent = 0, maxWidth = 80) {
+        const compact = compactStringify(value);
+        if (compact.length <= maxWidth - indent || !Array.isArray(value)) return compact;
+        const childIndent = indent + 2;
+        const parts = value.map(
+          (v) => " ".repeat(childIndent) + formatCompiled(v, childIndent, maxWidth),
+        );
+        return "[\n" + parts.join(",\n") + "\n" + " ".repeat(indent) + "]";
+      }
+
       function run() {
-        const source = sourceEl.value;
         try {
-          const result = compile(source);
-          outputEl.textContent = JSON.stringify(result, null, 2);
+          const result = compile(sourceEl.value);
+          outputEl.textContent = formatCompiled(result);
           outputEl.className = "ok";
-          statusEl.textContent = "";
+          statusEl.textContent = "Compiled successfully.";
         } catch (error) {
           outputEl.textContent = error.message;
           outputEl.className = "err";
-          statusEl.textContent = "compile() threw -- see message";
+          statusEl.textContent = "compile() threw -- see message.";
         }
       }
 
-      let debounceId;
       sourceEl.addEventListener("input", () => {
-        clearTimeout(debounceId);
-        debounceId = setTimeout(run, 150);
+        renderHighlight();
+        renderGutter();
       });
+      sourceEl.addEventListener("scroll", syncScroll);
+      sourceEl.addEventListener("keydown", (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+          e.preventDefault();
+          run();
+        }
+      });
+
+      runBtn.addEventListener("click", run);
 
       document.querySelectorAll("[data-example]").forEach((btn) => {
         btn.addEventListener("click", () => {
           sourceEl.value = EXAMPLES[btn.dataset.example];
+          renderHighlight();
+          renderGutter();
           run();
         });
       });
@@ -252,6 +494,10 @@ else
       });
 
       sourceEl.value = EXAMPLES.basics;
+      renderHighlight();
+      renderGutter();
+      runBtn.disabled = false;
+      statusEl.textContent = "Ready.";
       run();
     </script>
   </body>

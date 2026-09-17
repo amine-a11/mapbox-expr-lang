@@ -13,7 +13,7 @@ Requires Node.js 18+.
 ## Running things locally
 
 - `npm run dev` — a small REPL: type an expression, see the tokens and the compiled output.
-- `npm run run-file -- path/to/file.mel` — compile a `.mel` file and print the result.
+- `npm run run-file -- path/to/source-file` — compile a source file and print the result.
 - `npm run test` — run the test suite once.
 - `npm run test:watch` — run tests in watch mode while you work.
 - `npm run typecheck` — TypeScript, no emit.

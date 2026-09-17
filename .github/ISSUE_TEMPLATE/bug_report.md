@@ -12,7 +12,7 @@ A clear description of the bug.
 **Source that triggers it**
 
 ```
-your .mel source here
+your mapbox-expr-lang source here
 ```
 
 **Expected behavior**
