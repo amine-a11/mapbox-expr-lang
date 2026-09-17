@@ -1,6 +1,3 @@
-<p align="center">
-  <img src="docs/banner.jpg" alt="mapbox-expr-lang — write expressions naturally, compile them into Mapbox expressions" width="100%">
-</p>
 
 <h1 align="center">mapbox-expr-lang</h1>
 
@@ -14,11 +11,17 @@
 </p>
 
 <p align="center">
+  <a href="https://amine-a11.github.io/mapbox-expr-lang/playground.html">Playground</a> •
   <a href="https://amine-a11.github.io/mapbox-expr-lang/guide/">Guide</a> •
   <a href="https://amine-a11.github.io/mapbox-expr-lang/operators/">Operators</a> •
   <a href="grammar.md">Grammar</a> •
   <a href="#contributing">Contributing</a>
 </p>
+
+<p align="center">
+  <img src="docs/banner.jpg" alt="mapbox-expr-lang — write expressions naturally, compile them into Mapbox expressions" width="100%">
+</p>
+
 
 ---
 
@@ -69,6 +72,7 @@ defined`, ...) — never an internal detail you can't act on.
 
 ## Docs
 
+- **[Playground](https://amine-a11.github.io/mapbox-expr-lang/playground.html)** — type source, see the compiled expression live
 - **[Language guide](https://amine-a11.github.io/mapbox-expr-lang/guide/)** — a short tour of the language
 - **[Operator reference](https://amine-a11.github.io/mapbox-expr-lang/operators/)** — every operator, linked to its page on [docs.mapbox.com](https://docs.mapbox.com/style-spec/reference/expressions/)
 - **[Full grammar](grammar.md)** — the formal EBNF grammar

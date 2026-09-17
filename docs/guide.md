@@ -10,6 +10,7 @@ exact JSON `compile()` returns for it.
 
 For the full list of operators, see the [operator reference](operators.md).
 For the formal grammar, see [grammar.md](https://github.com/amine-a11/mapbox-expr-lang/blob/main/grammar.md).
+Want to try snippets as you read? Use the [playground](playground.html).
 
 ## Values
 
@@ -299,6 +300,17 @@ toBoolean(get("visible"))
 ["to-boolean", ["get", "visible"]]
 ```
 
+`coalesce` returns the first non-null argument -- handy for a property that
+might be missing from some features:
+
+```
+coalesce(get("name_en"), get("name"), "Unnamed")
+```
+
+```json
+["coalesce", ["get", "name_en"], ["get", "name"], "Unnamed"]
+```
+
 ## Constants
 
 Zero-argument operators, grouped under a short namespace so they're easy to
@@ -345,6 +357,20 @@ interpolate exponential(1.5) camera.zoom
 
 ```json
 ["interpolate", ["exponential", 1.5], ["zoom"], 5, 2, 15, 20]
+```
+
+A third option is `cubicBezier(x1, y1, x2, y2)` -- the same easing-curve
+shape as CSS's `cubic-bezier()` -- for eases that aren't a straight line or
+a simple exponential curve:
+
+```
+interpolate cubicBezier(0.42, 0, 0.58, 1) camera.zoom
+  0 then 0
+  1 then 1
+```
+
+```json
+["interpolate", ["cubic-bezier", 0.42, 0, 0.58, 1], ["zoom"], 0, 0, 1, 1]
 ```
 
 `interpolateHcl`/`interpolateLab` work the same way, for interpolating
@@ -425,6 +451,61 @@ else
 ]
 ```
 
+A second one: deriving a metric that doesn't exist as its own property --
+here, population density from two raw fields -- before ramping it through a
+color scale.
+
+```
+var density = get("population") / get("area_km2")
+
+interpolate linear density
+  0    then rgb(255, 255, 255)
+  1000 then rgb(200, 0, 0)
+```
+
+```json
+[
+  "let",
+  "density",
+  ["/", ["get", "population"], ["get", "area_km2"]],
+  [
+    "interpolate",
+    ["linear"],
+    ["var", "density"],
+    0,
+    ["rgb", 255, 255, 255],
+    1000,
+    ["rgb", 200, 0, 0]
+  ]
+]
+```
+
+## Using with TypeScript
+
+`compile()` returns a general JSON-value type, not one tied to the specific
+Mapbox/MapLibre paint or layout property you're assigning it to -- there's
+no way to know that ahead of time from a string of source. Libraries like
+`@types/mapbox-gl` type each property narrowly (e.g.
+`DataDrivenPropertyValueSpecification<number>` for `circle-radius`), so
+assigning a compiled expression directly will fail to typecheck. One cast
+at the call site is the fix, same as you'd need for a hand-written
+expression array:
+
+```ts
+import { compile } from "mapbox-expr-lang";
+import type { DataDrivenPropertyValueSpecification } from "mapbox-gl";
+
+map.setPaintProperty(
+  "quakes",
+  "circle-radius",
+  compile(`
+    interpolate linear get("mag")
+      1 then 3
+      8 then 38
+  `) as unknown as DataDrivenPropertyValueSpecification<number>,
+);
+```
+
 ## Errors
 
 `compile()` throws with a message that says exactly what's wrong:
@@ -451,6 +532,28 @@ unknownVar + 1
 
 ```
 Variable "unknownVar" is not defined
+```
+
+```
+min()
+```
+
+```
+"min" expects at least 1 argument, but got 0
+```
+
+Interpolate/step stops are checked for ascending order at compile time,
+the same rule Mapbox enforces at evaluation time -- just caught earlier,
+with a precise position:
+
+```
+interpolate linear camera.zoom
+  10 then 1
+  5  then 2
+```
+
+```
+Stop inputs must be in strictly ascending order, but 5 does not come after 10
 ```
 
 ```ts

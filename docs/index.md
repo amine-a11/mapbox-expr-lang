@@ -52,6 +52,7 @@ detail you can't act on.
 
 ## Where to go next
 
+- **[Playground](playground.html)** — type source, see the compiled expression live, no install
 - **[Language guide](guide.md)** — learn the language, with an example for every feature
 - **[Operator reference](operators.md)** — every operator this language supports, linked to its page on [docs.mapbox.com](https://docs.mapbox.com/style-spec/reference/expressions/)
 - **[Source on GitHub](https://github.com/amine-a11/mapbox-expr-lang)**
