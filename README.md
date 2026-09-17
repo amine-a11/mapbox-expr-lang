@@ -1,4 +1,3 @@
-
 <h1 align="center">mapbox-expr-lang</h1>
 
 <p align="center">
@@ -6,8 +5,12 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/mapbox-expr-lang"><img src="https://img.shields.io/npm/v/mapbox-expr-lang.svg" alt="npm version"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/npm/l/mapbox-expr-lang.svg" alt="license"></a>
+  <a href="https://www.npmjs.com/package/mapbox-expr-lang">
+    <img src="https://img.shields.io/npm/v/mapbox-expr-lang.svg" alt="npm version">
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/github/license/amine-a11/mapbox-expr-lang.svg" alt="license">
+  </a>
 </p>
 
 <p align="center">
@@ -21,7 +24,6 @@
 <p align="center">
   <img src="docs/banner.jpg" alt="mapbox-expr-lang — write expressions naturally, compile them into Mapbox expressions" width="100%">
 </p>
-
 
 ---
 
