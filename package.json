@@ -1,6 +1,6 @@
 {
   "name": "mapbox-expr-lang",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A human-friendly language that compiles to Mapbox GL style expressions.",
   "type": "module",
   "sideEffects": false,
